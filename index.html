@@ -1,0 +1,3087 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#0c0a08">
+
+<!-- PWA -->
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Subasta">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="description" content="Juego multijugador de subasta a tiempo real entre amigos.">
+
+<title>Subasta de Tiempo</title>
+
+<!-- Aplicar tema guardado antes de pintar (evita parpadeo) -->
+<script>
+  (function () {
+    // Tema claro/oscuro
+    try {
+      if (localStorage.getItem('subasta_theme') === 'light') {
+        document.documentElement.classList.add('pre-light');
+      }
+    } catch (e) {}
+
+    // SAFETY: el splash SIEMPRE desaparece en ≤5s
+    window.addEventListener('DOMContentLoaded', function () {
+      setTimeout(function () {
+        var splash = document.getElementById('app-splash');
+        if (splash && splash.style.display !== 'none') {
+          splash.style.transition = 'opacity 0.6s';
+          splash.style.opacity = '0';
+          setTimeout(function () { splash.style.display = 'none'; }, 650);
+        }
+      }, 5000);
+    });
+  })();
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0c0a08;
+  --panel: #161310;
+  --panel-2: #1c1814;
+  --line: #2a2520;
+  --text: #e8e2d4;
+  --muted: #6b6258;
+  --amber: #d4a017;
+  --player-color: #d4a017;
+  --grain-opacity: 0.5;
+  --vignette: rgba(0,0,0,0.45);
+}
+/* TEMA CLARO (perla) */
+body.light,
+html.pre-light body {
+  --bg: #f4f0e6;
+  --panel: #e9e3d4;
+  --panel-2: #efe9dc;
+  --line: #d4ccb8;
+  --text: #2a2218;
+  --muted: #9a8f78;
+  --amber: #b8860f;
+  --player-color: #b8860f;
+  --grain-opacity: 0.18;
+  --vignette: rgba(120,100,60,0.10);
+}
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+html, body { height: 100%; overflow: hidden; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Cormorant Garamond', serif;
+  background-image:
+    radial-gradient(ellipse 80% 50% at 50% 0%, rgba(212,160,23,0.07) 0%, transparent 65%),
+    radial-gradient(ellipse 60% 80% at 50% 100%, rgba(138,90,125,0.04) 0%, transparent 65%);
+  background-attachment: fixed;
+  position: relative;
+  overscroll-behavior: none;
+  -webkit-user-select: none;
+  user-select: none;
+  transition: background-color 0.4s ease, color 0.4s ease;
+}
+body::before {
+  content: ''; position: fixed; inset: 0;
+  pointer-events: none; z-index: 1;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.9 0 0 0 0 0.85 0 0 0 0 0.75 0 0 0 0.06 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+  opacity: var(--grain-opacity); mix-blend-mode: overlay;
+}
+body::after {
+  content: ''; position: fixed; inset: 0;
+  pointer-events: none; z-index: 1;
+  background: radial-gradient(ellipse at center, transparent 50%, var(--vignette) 100%);
+}
+.mono { font-family: 'IBM Plex Mono', monospace; font-feature-settings: "tnum"; }
+
+/* THEME TOGGLE (interruptor claro/oscuro) */
+#theme-toggle {
+  position: fixed;
+  top: max(1rem, env(safe-area-inset-top));
+  right: 1.2rem;
+  z-index: 500;
+  width: 56px; height: 30px;
+  border-radius: 15px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  cursor: pointer; outline: none;
+  padding: 0;
+  display: flex; align-items: center;
+  transition: background 0.3s, border-color 0.3s;
+  box-shadow: inset 0 1px 3px rgba(0,0,0,0.3);
+}
+#theme-toggle .knob {
+  position: absolute;
+  width: 24px; height: 24px;
+  border-radius: 50%;
+  left: 2px;
+  background: radial-gradient(circle at 35% 30%, #f4d987, #c8941f 70%, #8c6515);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.4), inset 0 1px 1px rgba(255,255,255,0.4);
+  transition: transform 0.3s cubic-bezier(0.2, 0.9, 0.3, 1);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 0.7rem; line-height: 1;
+}
+#theme-toggle .knob::after {
+  content: '☾';
+  color: #2a1e0a;
+}
+body.light #theme-toggle .knob {
+  transform: translateX(26px);
+}
+body.light #theme-toggle .knob::after {
+  content: '☀';
+}
+body.light #theme-toggle {
+  background: var(--panel);
+  border-color: var(--amber);
+}
+
+/* SOUND TOGGLE (silencio) */
+#sound-toggle {
+  position: fixed;
+  top: max(1rem, env(safe-area-inset-top));
+  right: 5.2rem;
+  z-index: 500;
+  width: 38px; height: 30px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  cursor: pointer; outline: none;
+  padding: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 0.95rem;
+  color: var(--amber);
+  transition: background 0.3s, border-color 0.3s, color 0.3s;
+}
+#sound-toggle.muted {
+  color: var(--muted);
+}
+#sound-toggle .ic-on { display: inline; }
+#sound-toggle .ic-off { display: none; }
+#sound-toggle.muted .ic-on { display: none; }
+#sound-toggle.muted .ic-off { display: inline; }
+
+/* Durante la partida los controles flotantes se atenúan para no distraer */
+body.in-game #theme-toggle,
+body.in-game #sound-toggle,
+body.in-game #help-btn {
+  opacity: 0.2;
+  transition: opacity 0.3s;
+}
+body.in-game #theme-toggle:hover,
+body.in-game #theme-toggle:active,
+body.in-game #sound-toggle:hover,
+body.in-game #sound-toggle:active,
+body.in-game #help-btn:active {
+  opacity: 0.85;
+}
+
+/* BOTÓN DE TUTORIAL (arriba a la izquierda) */
+#help-btn {
+  position: fixed;
+  top: max(1rem, env(safe-area-inset-top));
+  left: 1.2rem;
+  z-index: 500;
+  width: 30px; height: 30px;
+  border-radius: 50%;
+  border: none; outline: none; cursor: pointer;
+  background: #f4f0e6; color: #0c0a08;
+  font-family: 'Cormorant Garamond', serif;
+  font-style: italic; font-weight: 700;
+  font-size: 1.1rem; line-height: 1;
+  display: flex; align-items: center; justify-content: center;
+  transition: background 0.3s, color 0.3s, transform 0.1s;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+}
+body.light #help-btn {
+  background: #2a2218; color: #f4f0e6;
+}
+#help-btn:active { transform: scale(0.9); }
+
+/* OVERLAY DEL TUTORIAL */
+#tutorial-overlay {
+  position: fixed; inset: 0; z-index: 600;
+  background: rgba(12,10,8,0.97);
+  display: none; flex-direction: column;
+  padding: 2rem 1.4rem 1.4rem;
+  overflow-y: auto;
+}
+body.light #tutorial-overlay { background: rgba(244,240,230,0.98); }
+#tutorial-overlay.visible { display: flex; animation: screenIn 0.4s ease both; }
+#tutorial-overlay h2 {
+  font-family: 'Cormorant Garamond', serif;
+  font-style: italic;
+  font-size: clamp(2rem, 7vw, 2.8rem);
+  font-weight: 500; color: var(--text);
+  text-align: center; margin-bottom: 0.2rem;
+}
+#tutorial-overlay .tut-sub {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.6rem; letter-spacing: 0.4em;
+  color: var(--amber); text-align: center;
+  text-transform: uppercase; margin-bottom: 1.8rem;
+}
+.tut-step {
+  display: flex; gap: 0.9rem; align-items: flex-start;
+  margin-bottom: 1.3rem;
+  max-width: 480px; width: 100%;
+  margin-left: auto; margin-right: auto;
+}
+.tut-num {
+  flex-shrink: 0;
+  width: 30px; height: 30px;
+  border-radius: 50%;
+  border: 1px solid var(--amber);
+  color: var(--amber);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.8rem; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+}
+.tut-text {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 1.15rem; line-height: 1.45;
+  color: var(--text); text-align: left;
+}
+.tut-text b { color: var(--amber); font-weight: 700; }
+#tutorial-overlay .tut-close {
+  align-self: center; margin-top: 0.8rem;
+  margin-bottom: 1rem;
+}
+
+/* APP SPLASH (al abrir la PWA) */
+#app-splash {
+  position: fixed; inset: 0; z-index: 1000;
+  background: var(--bg);
+  display: flex; align-items: center; justify-content: center;
+  transition: opacity 0.6s ease;
+}
+html.pre-light #app-splash { background: #f4f0e6; }
+#app-splash.hiding {
+  opacity: 0;
+  pointer-events: none;
+}
+.splash-seal {
+  width: 140px; height: 140px;
+  border-radius: 50%;
+  border: 1px solid var(--amber);
+  display: flex; align-items: center; justify-content: center;
+  position: relative;
+  box-shadow:
+    inset 0 0 40px rgba(212,160,23,0.18),
+    0 0 80px rgba(212,160,23,0.18);
+  animation: sealMint 1.1s cubic-bezier(0.2, 0.9, 0.3, 1) both;
+  overflow: hidden;
+}
+.splash-seal::before {
+  content: ''; position: absolute; border-radius: 50%;
+  border: 1px solid rgba(212,160,23,0.25);
+  inset: 8px;
+}
+.splash-seal::after {
+  /* anillo punteado exterior que gira */
+  content: ''; position: absolute; border-radius: 50%;
+  border: 1px dotted rgba(212,160,23,0.5);
+  inset: -14px;
+  animation: ringSpin 8s linear infinite;
+}
+.splash-seal .glyph {
+  font-family: 'Cormorant Garamond', serif;
+  font-style: italic; font-weight: 700;
+  font-size: 4rem; color: var(--amber); line-height: 1;
+  text-shadow: 0 0 24px rgba(212,160,23,0.4);
+  animation: glyphDrop 0.7s cubic-bezier(0.3, 1.4, 0.5, 1) both;
+  animation-delay: 0.55s;
+  position: relative; z-index: 2;
+}
+/* destello que barre la moneda */
+.splash-seal .shine {
+  position: absolute; inset: 0;
+  border-radius: 50%;
+  background: linear-gradient(115deg,
+    transparent 30%,
+    rgba(255,255,255,0.55) 48%,
+    rgba(255,255,255,0.0) 60%);
+  transform: translateX(-120%);
+  animation: shineSweep 0.9s ease-out both;
+  animation-delay: 0.9s;
+  z-index: 3; pointer-events: none;
+}
+@keyframes sealMint {
+  0%   { opacity: 0; transform: scale(0.3) rotateY(180deg); }
+  60%  { opacity: 1; transform: scale(1.08) rotateY(0deg); }
+  100% { opacity: 1; transform: scale(1) rotateY(0deg); }
+}
+@keyframes glyphDrop {
+  0%   { opacity: 0; transform: translateY(-40px) scale(1.5); }
+  70%  { opacity: 1; transform: translateY(4px) scale(0.95); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes shineSweep {
+  0%   { transform: translateX(-120%); }
+  100% { transform: translateX(120%); }
+}
+@keyframes ringSpin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* Pantallas (todas) */
+.screen {
+  display: none; position: fixed; inset: 0;
+  flex-direction: column; align-items: center; justify-content: center;
+  padding: 1.5rem; text-align: center;
+  z-index: 5; overflow-y: auto;
+}
+.screen.visible {
+  display: flex;
+  animation: screenIn 0.45s cubic-bezier(0.2, 0.8, 0.3, 1) both;
+}
+@keyframes screenIn {
+  0% { opacity: 0; transform: translateY(12px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+/* Sello / título compartido */
+.seal {
+  width: 56px; height: 56px;
+  border-radius: 50%;
+  border: 1px solid var(--amber);
+  display: flex; align-items: center; justify-content: center;
+  margin-bottom: 1.5rem;
+  position: relative;
+  box-shadow: inset 0 0 20px rgba(212,160,23,0.15), 0 0 30px rgba(212,160,23,0.08);
+  flex-shrink: 0;
+}
+.seal::before, .seal::after {
+  content: ''; position: absolute; border-radius: 50%;
+  border: 1px solid rgba(212,160,23,0.25);
+}
+.seal::before { inset: 4px; }
+.seal::after { inset: -8px; border-style: dotted; opacity: 0.4; }
+.seal .glyph {
+  font-family: 'Cormorant Garamond', serif;
+  font-style: italic; font-weight: 700;
+  font-size: 1.4rem; color: var(--amber); line-height: 1;
+}
+.title {
+  font-size: clamp(2.2rem, 8vw, 4rem);
+  font-weight: 500; font-style: italic;
+  line-height: 0.95; letter-spacing: -0.01em;
+  margin-bottom: 0.2rem;
+}
+.title span {
+  display: block; font-style: normal;
+  font-weight: 700; letter-spacing: -0.015em;
+  background: linear-gradient(180deg, var(--text) 0%, color-mix(in srgb, var(--text) 75%, var(--amber) 25%) 100%);
+  -webkit-background-clip: text; background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.subtitle {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.65rem; letter-spacing: 0.5em;
+  color: var(--amber); margin: 1.2rem 0 2rem;
+  text-transform: uppercase;
+  display: flex; align-items: center; gap: 0.8rem;
+}
+.subtitle::before, .subtitle::after {
+  content: '·'; color: var(--amber); font-size: 1.4rem; opacity: 0.6;
+}
+
+/* Botones genéricos */
+.btn {
+  background: transparent;
+  border: 1px solid var(--amber);
+  color: var(--amber);
+  padding: 1rem 2rem;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.75rem; letter-spacing: 0.4em;
+  cursor: pointer; outline: none;
+  text-transform: uppercase;
+  transition: all 0.2s;
+  min-width: 220px;
+}
+.btn:hover, .btn:active { background: var(--amber); color: var(--bg); }
+.btn-secondary {
+  border-color: var(--line); color: var(--muted);
+  font-size: 0.65rem; padding: 0.7rem 1.5rem;
+  letter-spacing: 0.3em; min-width: 0;
+}
+.btn-secondary:hover, .btn-secondary:active {
+  border-color: var(--text); color: var(--text);
+  background: transparent;
+}
+.btn-row { display: flex; flex-direction: column; gap: 0.8rem; align-items: center; }
+.btn-back-row { margin-top: 1.5rem; }
+
+/* Inputs */
+.field {
+  display: flex; flex-direction: column;
+  width: 100%; max-width: 320px;
+  margin-bottom: 1.2rem;
+}
+.field label {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.6rem; letter-spacing: 0.3em;
+  color: var(--muted); text-transform: uppercase;
+  margin-bottom: 0.4rem; text-align: left;
+}
+.field input {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 0;
+  color: var(--text);
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 1.4rem;
+  padding: 0.6rem 0.9rem;
+  outline: none;
+  transition: border-color 0.2s;
+  text-align: center;
+}
+.field input:focus { border-color: var(--amber); }
+.field input.code {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 1.8rem;
+  letter-spacing: 0.5em;
+  text-transform: uppercase;
+  padding-left: 1.4rem;
+}
+
+/* LOBBY */
+.code-display {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: clamp(2.5rem, 10vw, 4rem);
+  font-weight: 700;
+  letter-spacing: 0.4em;
+  color: var(--amber);
+  padding: 1rem 1.5rem 1rem 2rem;
+  border: 1px solid var(--amber);
+  margin: 0.5rem 0 1.5rem;
+  text-shadow: 0 0 20px rgba(212,160,23,0.25);
+  text-align: center;
+}
+.code-help {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.6rem; color: var(--muted);
+  letter-spacing: 0.2em; text-transform: uppercase;
+  margin-bottom: 1.5rem; max-width: 30ch; line-height: 1.6;
+}
+.lobby-players {
+  display: flex; flex-direction: column; gap: 0.4rem;
+  width: 100%; max-width: 340px;
+  margin-bottom: 1.5rem;
+}
+.lobby-player {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 0.8rem;
+  background: var(--panel);
+  border-left: 3px solid var(--player-color);
+  padding: 0.55rem 0.9rem;
+  text-align: left;
+}
+.lobby-player .lp-pos {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.55rem; letter-spacing: 0.3em;
+  color: var(--player-color); font-weight: 700;
+  min-width: 26px;
+}
+.lobby-player .lp-name {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 1.1rem; color: var(--text);
+}
+.lobby-player .lp-me {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.55rem; letter-spacing: 0.25em;
+  color: var(--amber); text-transform: uppercase;
+}
+.lobby-player.disconnected { opacity: 0.4; }
+.lobby-player.disconnected .lp-me { color: var(--muted); }
+
+.host-actions {
+  display: flex; flex-direction: column;
+  gap: 0.8rem; align-items: center;
+  margin-top: 1rem;
+}
+.guest-waiting {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.65rem; color: var(--muted);
+  letter-spacing: 0.3em; text-transform: uppercase;
+  margin-top: 1rem;
+}
+.guest-waiting .dots::after {
+  content: '';
+  animation: dots 1.5s steps(4) infinite;
+}
+@keyframes dots {
+  0% { content: ''; }
+  25% { content: '.'; }
+  50% { content: '..'; }
+  75% { content: '...'; }
+}
+
+/* MODE SELECT */
+.modes {
+  display: flex; gap: 0.8rem;
+  flex-wrap: wrap; justify-content: center;
+  max-width: 600px; margin-bottom: 1.5rem;
+}
+.mode-card {
+  width: 130px; aspect-ratio: 1;
+  background: linear-gradient(180deg,
+    color-mix(in srgb, var(--panel-2) 85%, var(--amber) 4%) 0%,
+    var(--panel) 100%);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  cursor: pointer; outline: none;
+  position: relative;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  padding: 0.8rem 0.5rem;
+  transition: all 0.2s ease;
+  overflow: hidden;
+}
+.mode-card::before {
+  content: ''; position: absolute;
+  top: 0; left: 25%; right: 25%; height: 1px;
+  background: linear-gradient(90deg, transparent, var(--amber), transparent);
+  opacity: 0.5;
+}
+.mode-card:active, .mode-card.selected {
+  border-color: var(--amber);
+  box-shadow: 0 0 30px rgba(212,160,23,0.1);
+}
+.mode-card .roman {
+  font-family: 'Cormorant Garamond', serif;
+  font-style: italic; font-size: 1.7rem;
+  font-weight: 500; color: var(--amber);
+  line-height: 1; margin-bottom: 0.3rem;
+}
+.mode-card .label {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.55rem; letter-spacing: 0.3em;
+  color: var(--text); text-transform: uppercase;
+  margin-bottom: 0.7rem; font-weight: 700;
+}
+.mode-card .rounds {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 1.4rem; font-weight: 700;
+  color: var(--text); line-height: 1;
+}
+.mode-card .rounds-label {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.45rem; letter-spacing: 0.3em;
+  color: var(--muted); text-transform: uppercase;
+}
+.mode-card .divider {
+  width: 26px; height: 1px;
+  background: var(--line); margin: 0.4rem 0;
+}
+.mode-card .time {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.85rem; font-weight: 700;
+  color: var(--amber);
+}
+.mode-card .time-label {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.45rem; letter-spacing: 0.3em;
+  color: var(--muted); text-transform: uppercase;
+}
+
+/* ===== JUEGO (pantalla vertical de jugador) ===== */
+#screen-game {
+  padding: 0;
+  display: none;
+  flex-direction: column;
+  justify-content: stretch;
+  text-align: left;
+}
+#screen-game.visible { display: flex; }
+
+.game-top {
+  flex: 0 0 auto;
+  padding: 0.9rem 1.2rem 0.6rem;
+  background: linear-gradient(180deg, var(--panel-2) 0%, transparent 100%);
+  border-bottom: 1px solid var(--line);
+  position: relative;
+}
+.game-top::after {
+  content: ''; position: absolute;
+  bottom: -1px; left: 25%; right: 25%; height: 1px;
+  background: linear-gradient(90deg, transparent, var(--amber), transparent);
+  opacity: 0.4;
+}
+.game-top-row {
+  display: flex; justify-content: space-between; align-items: baseline;
+}
+.player-name-top {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.75rem; letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--player-color); font-weight: 700;
+  max-width: 60%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.wins-top {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.6rem; letter-spacing: 0.25em;
+  color: var(--muted); text-transform: uppercase;
+}
+.wins-top b { color: var(--text); font-weight: 700; font-size: 0.85rem; }
+
+.budget-zone {
+  flex: 0 0 auto;
+  padding: 0.7rem 1.2rem 0.4rem;
+  text-align: center;
+}
+.budget-label {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.55rem; letter-spacing: 0.4em;
+  color: var(--muted); text-transform: uppercase;
+  margin-bottom: 0.2rem;
+}
+.budget-val {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 1.5rem; font-weight: 700;
+  color: var(--text); letter-spacing: 0.03em;
+}
+
+/* SCOREBOARD: cómo van todos los jugadores en rondas */
+.scoreboard {
+  flex: 0 0 auto;
+  padding: 0.4rem 0.8rem 0.6rem;
+  display: flex; gap: 5px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+.scoreboard::-webkit-scrollbar { display: none; }
+.sb-pill {
+  display: flex; align-items: center;
+  gap: 6px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--sb-color);
+  padding: 0.3rem 0.55rem 0.3rem 0.5rem;
+  border-radius: 3px;
+  min-width: 0;
+  flex: 0 0 auto;
+  max-width: 110px;
+}
+.sb-pill.me {
+  background: color-mix(in srgb, var(--sb-color) 14%, var(--panel));
+  border-color: var(--sb-color);
+}
+.sb-pill.leader {
+  box-shadow: 0 0 0 1px var(--amber), 0 0 12px rgba(212,160,23,0.18);
+}
+.sb-pill .sb-name {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.6rem; letter-spacing: 0.1em;
+  color: var(--text); text-transform: uppercase;
+  font-weight: 700;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  max-width: 70px;
+}
+.sb-pill .sb-wins {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.95rem; font-weight: 700;
+  color: var(--sb-color);
+  line-height: 1;
+}
+.sb-pill.leader .sb-wins {
+  color: var(--amber);
+  text-shadow: 0 0 8px rgba(212,160,23,0.5);
+}
+
+.btn-zone {
+  flex: 1; min-height: 0;
+  display: flex; align-items: center; justify-content: center;
+  padding: 0.6rem 1.5rem 1.2rem;
+}
+.stop-btn {
+  width: 100%;
+  aspect-ratio: 1;
+  max-width: min(100%, 62vh);
+  max-height: 100%;
+  border: none; cursor: pointer; outline: none;
+  position: relative; border-radius: 32px;
+  padding: 0;
+  font-family: 'IBM Plex Mono', monospace;
+  color: #1a1410;
+  background: linear-gradient(180deg,
+    color-mix(in srgb, var(--player-color) 88%, white 12%) 0%,
+    var(--player-color) 45%,
+    color-mix(in srgb, var(--player-color) 80%, black 20%) 100%);
+  box-shadow:
+    0 10px 0 color-mix(in srgb, var(--player-color) 50%, black 50%),
+    0 16px 32px rgba(0,0,0,0.55),
+    inset 0 3px 0 rgba(255,255,255,0.30),
+    inset 0 -3px 0 rgba(0,0,0,0.25),
+    inset 0 0 0 1px rgba(0,0,0,0.15);
+  transform: translateY(0);
+  transition: transform 0.06s ease, box-shadow 0.06s ease;
+  display: flex; flex-direction: column;
+  justify-content: center; align-items: center;
+}
+.stop-btn::before {
+  content: ''; position: absolute; inset: 6px;
+  border-radius: 28px;
+  background: radial-gradient(ellipse at 50% 0%,
+    rgba(255,255,255,0.18) 0%, transparent 55%);
+  pointer-events: none;
+}
+.stop-btn:active, .stop-btn.pressing {
+  transform: translateY(9px);
+  box-shadow:
+    0 1px 0 color-mix(in srgb, var(--player-color) 50%, black 50%),
+    0 4px 10px rgba(0,0,0,0.4),
+    inset 0 2px 6px rgba(0,0,0,0.25);
+}
+@keyframes btnBreath {
+  0%, 100% { transform: translateY(0) scale(1); filter: brightness(1); }
+  50% { transform: translateY(-1px) scale(1.005); filter: brightness(1.05); }
+}
+.round-live .stop-btn { animation: btnBreath var(--breath-speed, 2.4s) ease-in-out infinite; }
+.stop-btn .time {
+  font-size: clamp(2.2rem, 8vw, 3.6rem);
+  font-weight: 700; letter-spacing: 0.04em;
+  line-height: 1;
+  text-shadow: 0 1px 0 rgba(255,255,255,0.18);
+  position: relative; z-index: 1;
+}
+.stop-btn .label {
+  font-size: 0.7rem; letter-spacing: 0.5em;
+  font-weight: 700; margin-top: 0.8rem;
+  opacity: 0.55; position: relative; z-index: 1;
+}
+/* Pulsado por el propio jugador: hundido, color más intenso (sin chivarse a los demás
+   en su pantalla, porque cada uno juega en su móvil) */
+.pressed .stop-btn {
+  background: linear-gradient(180deg,
+    color-mix(in srgb, var(--player-color) 92%, black 8%) 0%,
+    color-mix(in srgb, var(--player-color) 100%, black 0%) 40%,
+    color-mix(in srgb, var(--player-color) 75%, black 25%) 100%);
+  filter: saturate(1.35);
+  box-shadow:
+    0 2px 0 color-mix(in srgb, var(--player-color) 45%, black 55%),
+    0 6px 16px rgba(0,0,0,0.55),
+    inset 0 4px 12px rgba(0,0,0,0.35),
+    inset 0 -1px 0 rgba(255,255,255,0.08),
+    inset 0 0 0 1px rgba(0,0,0,0.25);
+  transform: translateY(8px);
+  cursor: default;
+  animation: none !important;
+}
+.pressed .stop-btn::before { opacity: 0.15; }
+.pressed .stop-btn .time {
+  color: rgba(0,0,0,0.75);
+  text-shadow: 0 1px 0 rgba(255,255,255,0.15);
+}
+.pressed .stop-btn .label { opacity: 0.3; }
+
+.game-bot {
+  flex: 0 0 auto;
+  padding: 0.6rem 1.2rem 0.9rem;
+  border-top: 1px solid var(--line);
+  background: linear-gradient(180deg, transparent 0%, var(--panel) 100%);
+}
+.game-bot-row {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 0.5rem;
+}
+.round-label {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.65rem; letter-spacing: 0.3em;
+  color: var(--amber); text-transform: uppercase;
+  font-weight: 700;
+}
+.last-label {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.55rem; letter-spacing: 0.2em;
+  color: var(--muted); text-transform: uppercase;
+}
+.last-label b { color: var(--text); font-weight: 700; }
+.progress {
+  display: flex; gap: 4px; justify-content: center;
+  cursor: pointer;
+  padding: 2px 0;
+}
+.progress .dot {
+  flex: 1; max-width: 14px; min-width: 4px;
+  height: 5px; border-radius: 1px;
+  background: var(--line);
+  transition: background 0.3s;
+}
+.progress .dot.done { background: var(--muted); }
+.progress .dot.current {
+  background: var(--amber);
+  box-shadow: 0 0 6px rgba(212,160,23,0.6);
+}
+
+/* HISTORY OVERLAY */
+#history-overlay {
+  position: fixed; inset: 0;
+  background: rgba(12,10,8,0.98);
+  z-index: 95;
+  display: none; flex-direction: column;
+  padding: 1.5rem 1.2rem 1.2rem;
+}
+#history-overlay.visible { display: flex; }
+#history-overlay h2 {
+  font-family: 'Cormorant Garamond', serif;
+  font-style: italic;
+  font-size: clamp(2rem, 6vw, 2.8rem);
+  font-weight: 500;
+  text-align: center;
+  margin-bottom: 0.3rem;
+  color: var(--text);
+}
+#history-overlay .ho-sub {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.6rem; letter-spacing: 0.4em;
+  color: var(--amber); text-align: center;
+  text-transform: uppercase;
+  margin-bottom: 1.5rem;
+}
+.hist-list {
+  flex: 1; min-height: 0;
+  overflow-y: auto;
+  display: flex; flex-direction: column;
+  gap: 0.35rem;
+  margin-bottom: 1rem;
+}
+.hist-row {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 0.8rem;
+  padding: 0.55rem 0.9rem;
+  background: var(--panel);
+  border-left: 3px solid var(--winner-color);
+}
+.hist-row .h-round {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.6rem;
+  color: var(--muted);
+  letter-spacing: 0.25em;
+  font-weight: 700;
+}
+.hist-row .h-name {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.8rem;
+  color: var(--winner-color);
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.hist-row .h-cost {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--text);
+}
+.hist-row.gold {
+  border-left-color: var(--amber);
+  box-shadow: inset 0 0 0 1px rgba(212,160,23,0.15);
+}
+.hist-row.gold .h-name {
+  color: var(--amber);
+}
+.hist-row.empty {
+  text-align: center;
+  background: transparent;
+  border-left: none;
+  color: var(--muted);
+  font-style: italic;
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 1rem;
+  display: block;
+  padding: 2rem 0;
+}
+#history-overlay .ho-close {
+  align-self: center;
+}
+
+/* SPLASH de ronda */
+#splash {
+  position: fixed; inset: 0; z-index: 80;
+  display: none; justify-content: center; align-items: center;
+  background: rgba(12,10,8,0.98);
+}
+#splash.visible { display: flex; }
+#splash .num {
+  font-family: 'Cormorant Garamond', serif;
+  font-style: italic;
+  font-size: clamp(5rem, 22vw, 14rem);
+  font-weight: 500; color: var(--amber);
+  text-shadow: 0 0 60px rgba(212,160,23,0.25);
+  animation: splashIn 0.5s cubic-bezier(0.2, 0.9, 0.3, 1) both;
+}
+@keyframes splashIn {
+  0% { opacity: 0; transform: scale(1.4); letter-spacing: 0.2em; }
+  100% { opacity: 1; transform: scale(1); letter-spacing: 0; }
+}
+#splash .label {
+  position: absolute;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.7rem; letter-spacing: 0.5em;
+  color: var(--muted); text-transform: uppercase;
+  margin-top: -11rem;
+}
+
+/* GOLD ANNOUNCE */
+#gold-announce {
+  position: fixed; inset: 0; z-index: 75;
+  display: none; justify-content: center; align-items: center;
+  background: radial-gradient(ellipse at center, rgba(40,28,5,0.97), rgba(12,10,8,0.99));
+}
+#gold-announce.visible { display: flex; }
+#gold-announce .wrap { text-align: center; }
+#gold-announce .star {
+  font-size: 4rem; color: var(--amber); line-height: 1;
+  text-shadow: 0 0 30px rgba(212,160,23,0.7);
+  animation: starSpin 1.8s ease-out both;
+}
+@keyframes starSpin {
+  0% { opacity: 0; transform: rotate(-180deg) scale(0.3); }
+  60% { opacity: 1; transform: rotate(0deg) scale(1.2); }
+  100% { opacity: 1; transform: rotate(0deg) scale(1); }
+}
+#gold-announce .label {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.7rem; letter-spacing: 0.6em;
+  color: var(--amber); text-transform: uppercase;
+  margin: 1rem 0 0.5rem;
+}
+#gold-announce .name {
+  font-family: 'Cormorant Garamond', serif;
+  font-style: italic;
+  font-size: clamp(3rem, 10vw, 5rem);
+  font-weight: 500;
+  background: linear-gradient(180deg, #f4d987 0%, #c8941f 100%);
+  -webkit-background-clip: text; background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+#gold-announce .sub {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.7rem; letter-spacing: 0.3em;
+  color: var(--muted); text-transform: uppercase;
+  margin-top: 1rem;
+}
+#gold-announce .sub b { color: var(--text); font-weight: 700; }
+
+/* REVEAL */
+#reveal {
+  position: fixed; inset: 0; z-index: 70;
+  display: none; flex-direction: column;
+  justify-content: center; align-items: center;
+  background: rgba(12,10,8,0.97); text-align: center;
+  padding: 1rem;
+}
+#reveal.visible { display: flex; }
+#reveal.gold {
+  background: radial-gradient(ellipse at center, rgba(40,28,5,0.95), rgba(12,10,8,0.97));
+}
+#reveal.tie .gana,
+#reveal.tie .cost-label,
+#reveal.tie .double-mark { display: none; }
+#reveal.tie .winner {
+  color: var(--muted);
+  font-style: italic;
+}
+
+#reveal .gavel {
+  font-size: 3.5rem;
+  line-height: 1;
+  margin-bottom: 0.8rem;
+  transform-origin: 70% 70%;
+  opacity: 0;
+}
+#reveal.visible .gavel {
+  animation: gavelStrike 0.7s cubic-bezier(0.4, 0, 0.6, 1) both;
+}
+@keyframes gavelStrike {
+  0%   { opacity: 0; transform: rotate(-55deg) translateY(-20px); }
+  35%  { opacity: 1; transform: rotate(-55deg) translateY(-20px); }
+  55%  { opacity: 1; transform: rotate(8deg) translateY(0); }
+  62%  { transform: rotate(0deg) translateY(2px); }
+  70%  { transform: rotate(4deg) translateY(0); }
+  100% { opacity: 1; transform: rotate(0deg) translateY(0); }
+}
+/* temblor del contenido al impactar */
+#reveal.visible .winner {
+  animation: winnerIn 0.6s cubic-bezier(0.2, 0.9, 0.3, 1) both, impactShake 0.3s ease-out 0.5s;
+}
+@keyframes impactShake {
+  0%, 100% { margin-left: 0; }
+  25% { margin-left: -4px; }
+  75% { margin-left: 4px; }
+}
+
+#reveal .ronda {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.7rem; letter-spacing: 0.5em;
+  color: var(--muted); text-transform: uppercase;
+  margin-bottom: 1.5rem;
+}
+#reveal .gana {
+  font-family: 'Cormorant Garamond', serif;
+  font-style: italic; font-size: 1.5rem;
+  color: var(--muted); margin-bottom: 0.3rem;
+}
+#reveal .winner {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: clamp(3.5rem, 14vw, 6rem);
+  font-weight: 700;
+  color: var(--winner-color, var(--amber));
+  letter-spacing: -0.01em; margin-bottom: 1.5rem;
+  text-shadow: 0 0 40px color-mix(in srgb, var(--winner-color, #d4a017) 30%, transparent);
+  animation: winnerIn 0.6s cubic-bezier(0.2, 0.9, 0.3, 1) both;
+}
+@keyframes winnerIn {
+  0% { opacity: 0; transform: translateY(20px) scale(0.9); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+#reveal .cost-label {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.7rem; color: var(--muted);
+  letter-spacing: 0.3em; text-transform: uppercase;
+  margin-bottom: 0.5rem;
+}
+#reveal .cost {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 2rem; font-weight: 700; color: var(--text);
+}
+#reveal .double-mark {
+  margin-top: 1.2rem;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.75rem; letter-spacing: 0.4em;
+  color: var(--amber); text-transform: uppercase;
+  display: none;
+  text-shadow: 0 0 20px rgba(212,160,23,0.5);
+}
+#reveal.gold .double-mark { display: block; }
+
+/* FINAL */
+#final {
+  position: fixed; inset: 0; z-index: 90;
+  display: none; flex-direction: column;
+  justify-content: center; align-items: center;
+  padding: 1.5rem; text-align: center;
+  background:
+    radial-gradient(ellipse at 50% 30%, color-mix(in srgb, var(--winner-color, #d4a017) 35%, transparent) 0%, transparent 60%),
+    var(--bg);
+  overflow: hidden;
+}
+#final.visible { display: flex; animation: fadeIn 0.8s ease both; }
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+#final::before {
+  content: ''; position: absolute; inset: 0;
+  background: radial-gradient(circle at 50% 50%,
+    color-mix(in srgb, var(--winner-color, #d4a017) 25%, transparent) 0%,
+    transparent 50%);
+  filter: blur(60px); pointer-events: none; z-index: 0;
+}
+#final > * { position: relative; z-index: 1; }
+#final .crown {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.65rem; letter-spacing: 0.6em;
+  color: var(--muted); text-transform: uppercase;
+  margin-bottom: 0.5rem;
+  display: flex; align-items: center; gap: 1rem;
+}
+#final .crown::before, #final .crown::after {
+  content: ''; width: 36px; height: 1px;
+  background: linear-gradient(90deg, transparent, var(--winner-color, var(--amber)), transparent);
+}
+#final .winner-name {
+  font-family: 'Cormorant Garamond', serif;
+  font-style: italic;
+  font-size: clamp(3rem, 14vw, 6rem);
+  font-weight: 700;
+  color: var(--winner-color, var(--amber));
+  letter-spacing: -0.015em; line-height: 1;
+  margin-bottom: 0.3rem;
+  text-shadow:
+    0 0 40px color-mix(in srgb, var(--winner-color, #d4a017) 50%, transparent),
+    0 4px 8px rgba(0,0,0,0.5);
+  animation: winnerNameIn 1s cubic-bezier(0.2, 0.9, 0.3, 1) both;
+  animation-delay: 0.3s;
+}
+@keyframes winnerNameIn {
+  0% { opacity: 0; transform: translateY(40px) scale(0.85); letter-spacing: 0.1em; }
+  100% { opacity: 1; transform: translateY(0) scale(1); letter-spacing: -0.015em; }
+}
+#final .winner-wins {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.7rem; letter-spacing: 0.5em;
+  color: var(--text); text-transform: uppercase;
+  margin-bottom: 2rem;
+  opacity: 0; animation: fadeIn 0.6s ease both; animation-delay: 1s;
+}
+#final .winner-wins b {
+  color: var(--winner-color, var(--amber));
+  font-weight: 700; font-size: 1.2rem;
+}
+#final .standings {
+  display: flex; flex-direction: column;
+  gap: 0.35rem; width: 100%; max-width: 360px;
+  margin-bottom: 2rem;
+  opacity: 0; animation: fadeIn 0.6s ease both; animation-delay: 1.3s;
+}
+.row {
+  display: grid;
+  grid-template-columns: auto 1fr auto auto;
+  align-items: center; gap: 0.8rem;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.8rem;
+  padding: 0.5rem 0.9rem;
+  background: rgba(22,19,16,0.6);
+  border-left: 2px solid var(--player-color);
+  text-align: left;
+  backdrop-filter: blur(8px);
+}
+.row .pos { color: var(--muted); font-size: 0.62rem; letter-spacing: 0.15em; }
+.row .nm { color: var(--player-color); font-weight: 700; letter-spacing: 0.1em; font-size: 0.75rem; }
+.row .wn { color: var(--text); font-weight: 700; }
+.row .lbl { color: var(--muted); font-size: 0.55rem; letter-spacing: 0.2em; text-transform: uppercase; }
+#final .final-btn {
+  background: transparent; border: 1px solid var(--amber);
+  color: var(--amber); padding: 0.9rem 2.2rem;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.7rem; letter-spacing: 0.4em;
+  cursor: pointer; text-transform: uppercase;
+  transition: all 0.2s;
+  opacity: 0; animation: fadeIn 0.6s ease both; animation-delay: 1.6s;
+}
+#final .final-btn:hover { background: var(--amber); color: var(--bg); }
+
+#final .final-actions {
+  display: flex; flex-direction: column;
+  align-items: center; gap: 0.8rem;
+  margin-top: 0.5rem;
+}
+#btn-revancha {
+  background: var(--amber) !important;
+  color: var(--bg) !important;
+  border: none !important;
+  font-size: 0.75rem !important;
+  letter-spacing: 0.35em !important;
+  padding: 1rem 2.5rem !important;
+  box-shadow: 0 4px 0 color-mix(in srgb, var(--amber) 40%, black 60%),
+              0 8px 20px rgba(212,160,23,0.3);
+  transform: translateY(0);
+  transition: transform 0.1s, box-shadow 0.1s, background 0.2s !important;
+}
+#btn-revancha:active {
+  transform: translateY(3px);
+  box-shadow: 0 1px 0 color-mix(in srgb, var(--amber) 40%, black 60%),
+              0 4px 10px rgba(212,160,23,0.2);
+}
+#revancha-waiting {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.6rem; letter-spacing: 0.4em;
+  color: var(--muted); text-transform: uppercase;
+  opacity: 0; animation: fadeIn 0.6s ease both; animation-delay: 1.8s;
+}
+#revancha-waiting .dots::after {
+  content: ''; animation: dots 1.4s infinite;
+}
+
+/* ESTADÍSTICAS DE FIN DE PARTIDA */
+.btn-share {
+  background: transparent;
+  border: 1px solid color-mix(in srgb, var(--amber) 50%, transparent);
+  color: var(--amber);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.6rem; letter-spacing: 0.2em;
+  text-transform: uppercase;
+  padding: 0.6rem 1.2rem;
+  border-radius: 6px;
+  cursor: pointer;
+  margin: 0.2rem auto 1rem;
+  transition: all 0.2s;
+}
+.btn-share:active { background: color-mix(in srgb, var(--amber) 15%, transparent); }
+#final-stats {
+  width: 100%; max-width: 340px;
+  margin: 0.5rem auto 0.3rem;
+  display: flex; flex-direction: column; gap: 0.4rem;
+  opacity: 0; animation: fadeIn 0.6s ease both; animation-delay: 1.4s;
+}
+.fstat {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 0.6rem;
+  padding: 0.5rem 0.8rem;
+  background: var(--panel);
+  border-left: 2px solid var(--amber);
+}
+.fstat-label {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.55rem; letter-spacing: 0.15em;
+  color: var(--muted); text-transform: uppercase;
+  text-align: left;
+}
+.fstat-val {
+  font-family: 'Cormorant Garamond', serif;
+  font-style: italic;
+  font-size: 1rem; color: var(--text);
+  text-align: right; white-space: nowrap;
+}
+.fstat-val b { color: var(--amber); font-style: normal; font-weight: 700; }
+
+/* TOAST / errores */
+#toast {
+  position: fixed; bottom: 1.5rem; left: 50%;
+  transform: translateX(-50%);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-left: 3px solid #c84a2a;
+  color: var(--text);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.7rem; letter-spacing: 0.1em;
+  padding: 0.7rem 1.2rem;
+  z-index: 200;
+  opacity: 0; pointer-events: none;
+  transition: opacity 0.3s;
+}
+#toast.visible { opacity: 1; }
+</style>
+</head>
+<body>
+
+<!-- Música de fondo (dos pistas, alternan por ronda) -->
+<audio id="music-1" src="music-1.mp3" loop preload="auto"></audio>
+<audio id="music-2" src="music-2.mp3" loop preload="auto"></audio>
+<audio id="music-menu" src="music-menu.mp3" loop preload="auto"></audio>
+
+<!-- Controles flotantes permanentes (visibles en todas las pantallas) -->
+<button id="theme-toggle" aria-label="Cambiar tema"><span class="knob"></span></button>
+<button id="sound-toggle" aria-label="Sonido"><span class="ic-on">♪</span><span class="ic-off">✕</span></button>
+<button id="help-btn" aria-label="Cómo se juega">?</button>
+
+<!-- TUTORIAL -->
+<div id="tutorial-overlay">
+  <h2 data-i18n="tutTitle">Cómo se juega</h2>
+  <div class="tut-sub" data-i18n="tutSub">subasta de tiempo</div>
+  <div class="tut-step"><div class="tut-num">1</div><div class="tut-text" data-i18n="tutStep1">Cada jugador tiene una <b>bolsa de tiempo</b>. Es tu presupuesto para toda la partida.</div></div>
+  <div class="tut-step"><div class="tut-num">2</div><div class="tut-text" data-i18n="tutStep2">En cada ronda, todos los relojes corren a la vez. Pulsa <b>PARAR</b> cuando quieras.</div></div>
+  <div class="tut-step"><div class="tut-num">3</div><div class="tut-text" data-i18n="tutStep3">El <b>último en parar gana</b> la ronda. Pero ojo: <b>todos pierden</b> el tiempo que han dejado correr, ganen o no.</div></div>
+  <div class="tut-step"><div class="tut-num">4</div><div class="tut-text" data-i18n="tutStep4">Solo se anuncia cuánto gastó el ganador. <b>Tu tiempo restante es secreto</b>.</div></div>
+  <div class="tut-step"><div class="tut-num">5</div><div class="tut-text" data-i18n="tutStep5">Si los <b>dos que más aguantan</b> paran en el mismo segundo, se disputan la victoria en empate y la ronda queda <b>desierta</b>: nadie puntúa, pero todos pierden su tiempo.</div></div>
+  <div class="tut-step"><div class="tut-num">★</div><div class="tut-text" data-i18n="tutStep6">Una ronda al azar es la <b>Ronda de Oro</b>: vale por dos victorias. Aparece por sorpresa.</div></div>
+  <div class="tut-step"><div class="tut-num">🏆</div><div class="tut-text" data-i18n="tutStep7">Gana quien <b>más rondas</b> se lleve al final. Administra tu tiempo: gastar de más te deja sin munición.</div></div>
+  <button class="btn-secondary btn tut-close" id="tut-close" data-i18n="btnClose">cerrar</button>
+</div>
+
+<!-- App splash (mientras carga la PWA) -->
+<div id="app-splash">
+  <div class="splash-seal">
+    <span class="glyph">S</span>
+    <span class="shine"></span>
+  </div>
+</div>
+
+<!-- HOME -->
+<div id="screen-home" class="screen visible">
+  <div class="seal"><span class="glyph">S</span></div>
+  <div class="title"><em data-i18n="appTitleA">Subasta</em><span data-i18n="appTitleB">de Tiempo</span></div>
+  <div class="subtitle" data-i18n="subMulti">multijugador</div>
+  <div class="btn-row">
+    <button class="btn" id="btn-create" data-i18n="btnCreate">Crear sala</button>
+    <button class="btn" id="btn-join" data-i18n="btnJoin">Unirse a sala</button>
+  </div>
+</div>
+
+<!-- CREATE: nombre del host -->
+<div id="screen-create" class="screen">
+  <div class="seal"><span class="glyph">S</span></div>
+  <div class="subtitle" data-i18n="subHost">jefe de sala</div>
+  <div class="field">
+    <label data-i18n="yourName">Tu nombre</label>
+    <input type="text" id="host-name" maxlength="14" placeholder="Marcos" autocomplete="off">
+  </div>
+  <button class="btn" id="btn-host-continue" data-i18n="btnHostContinue">Crear sala →</button>
+  <div class="btn-back-row">
+    <button class="btn-secondary btn" id="btn-host-back" data-i18n="btnBack">← volver</button>
+  </div>
+</div>
+
+<!-- JOIN: código + nombre -->
+<div id="screen-join" class="screen">
+  <div class="seal"><span class="glyph">S</span></div>
+  <div class="subtitle" data-i18n="subJoin">unirse</div>
+  <div class="field">
+    <label data-i18n="roomCode">Código de sala</label>
+    <input type="text" id="join-code" class="code" maxlength="4" placeholder="ABCD" autocomplete="off">
+  </div>
+  <div class="field">
+    <label data-i18n="yourName">Tu nombre</label>
+    <input type="text" id="join-name" maxlength="14" placeholder="Pepe" autocomplete="off">
+  </div>
+  <button class="btn" id="btn-join-continue" data-i18n="btnJoinContinue">Entrar →</button>
+  <div class="btn-back-row">
+    <button class="btn-secondary btn" id="btn-join-back" data-i18n="btnBack">← volver</button>
+  </div>
+</div>
+
+<!-- LOBBY (host y guest comparten esta pantalla con variaciones) -->
+<div id="screen-lobby" class="screen">
+  <div class="subtitle" data-i18n="lobbyRoomLabel">sala</div>
+  <div class="code-display" id="lobby-code">— — — —</div>
+  <div class="code-help" data-i18n="shareCode">comparte este código con los demás jugadores</div>
+  <button id="btn-share" class="btn-share">📲 <span data-i18n="shareBtn">Compartir por WhatsApp</span></button>
+  <div class="lobby-players" id="lobby-players"></div>
+
+  <!-- Solo host: elegir modo + empezar -->
+  <div class="host-actions" id="host-actions" style="display:none">
+    <div class="modes">
+      <button class="mode-card selected" data-rounds="10" data-time="180">
+        <span class="roman">I</span><span class="label" data-i18n="modeBreve">Breve</span>
+        <span class="rounds">10</span><span class="rounds-label" data-i18n="rounds">rondas</span>
+        <span class="divider"></span>
+        <span class="time">3:00</span><span class="time-label" data-i18n="perPlayerShort">por jug.</span>
+      </button>
+      <button class="mode-card" data-rounds="15" data-time="300">
+        <span class="roman">II</span><span class="label" data-i18n="modePlena">Plena</span>
+        <span class="rounds">15</span><span class="rounds-label" data-i18n="rounds">rondas</span>
+        <span class="divider"></span>
+        <span class="time">5:00</span><span class="time-label" data-i18n="perPlayerShort">por jug.</span>
+      </button>
+      <button class="mode-card" data-rounds="20" data-time="480">
+        <span class="roman">III</span><span class="label" data-i18n="modeLarga">Larga</span>
+        <span class="rounds">20</span><span class="rounds-label" data-i18n="rounds">rondas</span>
+        <span class="divider"></span>
+        <span class="time">8:00</span><span class="time-label" data-i18n="perPlayerShort">por jug.</span>
+      </button>
+    </div>
+    <button class="btn" id="btn-start" data-i18n="btnStart">Empezar partida</button>
+  </div>
+
+  <!-- Solo guest: esperando -->
+  <div class="guest-waiting" id="guest-waiting" style="display:none">
+    <span data-i18n="waitingHost">esperando al jefe</span><span class="dots"></span>
+  </div>
+
+  <div class="btn-back-row">
+    <button class="btn-secondary btn" id="btn-lobby-leave" data-i18n="btnLeaveRoom">← salir de la sala</button>
+  </div>
+</div>
+
+<!-- JUEGO -->
+<div id="screen-game" class="screen">
+  <div class="game-top">
+    <div class="game-top-row">
+      <div class="player-name-top" id="game-name">—</div>
+      <div class="wins-top"><b id="game-wins">0</b>&nbsp;<span data-i18n="rowRounds">rondas</span></div>
+    </div>
+  </div>
+
+  <div class="budget-zone">
+    <div class="budget-label" data-i18n="timeRemaining">Te quedan</div>
+    <div class="budget-val mono" id="game-budget">3:00.0</div>
+  </div>
+
+  <div class="scoreboard" id="scoreboard"></div>
+
+
+  <div class="btn-zone">
+    <button class="stop-btn" id="game-stop">
+      <span class="time" id="game-time">0:00.00</span>
+      <span class="label" data-i18n="stopLabel">PARAR</span>
+    </button>
+  </div>
+
+  <div class="game-bot">
+    <div class="game-bot-row">
+      <div class="round-label" id="game-round">Ronda 1 / 10</div>
+      <div class="last-label" id="game-last">—</div>
+    </div>
+    <div class="progress" id="game-progress"></div>
+  </div>
+</div>
+
+<!-- Historial bajo demanda -->
+<div id="history-overlay">
+  <h2 data-i18n="historyTitle">Historial</h2>
+  <div class="ho-sub" data-i18n="historySub">rondas jugadas</div>
+  <div class="hist-list" id="hist-list"></div>
+  <button class="btn-secondary btn ho-close" id="ho-close" data-i18n="btnClose">cerrar</button>
+</div>
+
+<!-- Overlays -->
+<div id="splash">
+  <div class="label" data-i18n="splashRound">Ronda</div>
+  <div class="num" id="splash-num">1</div>
+</div>
+
+<div id="gold-announce">
+  <div class="wrap">
+    <div class="star">★</div>
+    <div class="label" data-i18n="goldRoundLabel">Ronda</div>
+    <div class="name" data-i18n="goldRoundName">de Oro</div>
+    <div class="sub" id="gold-sub">vale por <b>dos</b> victorias</div>
+  </div>
+</div>
+
+<div id="reveal">
+  <div class="gavel" id="reveal-gavel">🔨</div>
+  <div class="ronda" id="reveal-ronda-label">Ronda <span id="reveal-round"></span> · resultado</div>
+  <div class="gana" data-i18n="revealWins">gana</div>
+  <div class="winner" id="reveal-winner"></div>
+  <div class="cost-label" data-i18n="revealBid">apostó</div>
+  <div class="cost mono" id="reveal-cost"></div>
+  <div class="double-mark" id="reveal-double" data-i18n="goldMark">★ ronda de oro · vale doble ★</div>
+</div>
+
+<div id="final">
+  <div class="crown" data-i18n="finalCrown">Vencedor</div>
+  <div class="winner-name" id="final-winner-name"></div>
+  <div class="winner-wins" id="final-winner-wins"></div>
+  <div class="standings" id="standings"></div>
+  <div id="final-stats"></div>
+  <div class="final-actions">
+    <button class="final-btn" id="btn-revancha" style="display:none">⚔ Revancha</button>
+    <div id="revancha-waiting" style="display:none">
+      esperando revancha<span class="dots"></span>
+    </div>
+    <button class="final-btn" onclick="location.reload()" data-i18n="btnNewGame">Otra partida</button>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+// =====================================================================
+// FIREBASE (compat - carga como script normal sin módulos ES)
+// =====================================================================
+
+const firebaseConfig = {
+  apiKey: "AIzaSyAFp8M5dKmrUYxnfNdWXqHtewxEtpQJTMY",
+  authDomain: "subasta-de-tiempo.firebaseapp.com",
+  databaseURL: "https://subasta-de-tiempo-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId: "subasta-de-tiempo",
+  storageBucket: "subasta-de-tiempo.firebasestorage.app",
+  messagingSenderId: "265857604531",
+  appId: "1:265857604531:web:a087d5dbac48fb206f09c6"
+};
+// Firebase SDK eliminado - usando REST API
+// =====================================================================
+// FIREBASE: API REST pura con fetch() — sin SDK, sin dependencias externas
+// Funciona desde cualquier origen: Netlify, GitHub Pages, local, etc.
+// =====================================================================
+const DB_URL = 'https://subasta-de-tiempo-default-rtdb.europe-west1.firebasedatabase.app';
+
+async function _fb(path, opts) {
+  try {
+    const r = await fetch(DB_URL + '/' + path + '.json', Object.assign({ mode: 'cors' }, opts || {}));
+    if (!r.ok) return null;
+    return r.json();
+  } catch(e) { return null; }
+}
+
+function serverTimestamp() { return { '.sv': 'timestamp' }; }
+
+// Compatibilidad API (misma firma que versión SDK modular)
+const db = {};
+function ref(db, path) { return path; }
+
+async function get(path) {
+  const data = await _fb(path);
+  return { exists: () => data !== null, val: () => data };
+}
+function set(path, value) {
+  return _fb(path, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(value) });
+}
+function update(basePath, data) {
+  // Multi-path update: PUT individual para cada clave (soporta rutas con '/')
+  return Promise.all(Object.entries(data).map(([key, value]) => {
+    const full = basePath + '/' + key;
+    if (value === null) return _fb(full, { method: 'DELETE' });
+    return _fb(full, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(value) });
+  }));
+}
+function remove(path) { return _fb(path, { method: 'DELETE' }); }
+
+// Polling cada 400ms — reemplaza los WebSockets del SDK
+let _pollTimer = null, _pollPath = null, _pollCb = null, _pollLast = null;
+function _doPoll() {
+  if (!_pollPath) return;
+  _fb(_pollPath).then(data => {
+    const s = JSON.stringify(data);
+    if (s !== _pollLast) { _pollLast = s; if (_pollCb) _pollCb({ exists: () => data !== null, val: () => data }); }
+    if (_pollPath) _pollTimer = setTimeout(_doPoll, 400);
+  }).catch(() => { if (_pollPath) _pollTimer = setTimeout(_doPoll, 400); });
+}
+function onValue(path, callback) {
+  clearTimeout(_pollTimer); _pollPath = path; _pollCb = callback; _pollLast = null; _doPoll();
+}
+function off() { clearTimeout(_pollTimer); _pollPath = null; _pollCb = null; }
+
+function onDisconnect(path) {
+  return { set: (value) => {
+    window.addEventListener('beforeunload', () => {
+      try { navigator.sendBeacon(DB_URL + '/' + path + '.json', JSON.stringify(value)); } catch(e) {}
+    });
+    return Promise.resolve();
+  }};
+}
+
+// =====================================================================
+// IDENTIDAD Y ESTADO LOCAL
+// =====================================================================
+const COLORS = [
+  '#d4632a', '#4a8a7b', '#c9a44a', '#9c5fa0',
+  '#a85a3d', '#5e8aa0', '#a87a4c', '#7a9050'
+];
+const SPLASH_MS = 1100;
+const REVEAL_MS = 2800;
+const ROOM_TTL_MS = 24 * 60 * 60 * 1000;
+
+// ID único por sesión (sessionStorage: cada pestaña/dispositivo es distinto)
+let myId = sessionStorage.getItem('subasta_pid');
+if (!myId) {
+  myId = 'p_' + Math.random().toString(36).slice(2, 10);
+  sessionStorage.setItem('subasta_pid', myId);
+}
+
+function saveRoomState() {
+  if (roomCode) sessionStorage.setItem('subasta_room', roomCode);
+  if (myName) sessionStorage.setItem('subasta_name', myName);
+}
+function clearRoomState() {
+  sessionStorage.removeItem('subasta_room');
+  sessionStorage.removeItem('subasta_name');
+}
+let myName = '';
+let roomCode = null;
+let amHost = false;
+let roomRef = null;
+let roomData = null;       // último snapshot completo de la sala
+let serverOffset = 0;
+let unsubs = [];            // funciones para desuscribirse
+
+// Timing local de ronda
+let roundStartServerMs = 0;
+let roundActive = false;
+let myStopped = false;
+let rafId = null;
+let selectedMode = { rounds: 10, time: 180 };
+let lastFinishedRound = 0;  // guard anti-doble-cierre
+
+// =====================================================================
+// HELPERS
+// =====================================================================
+function $(id) { return document.getElementById(id); }
+function show(screenId) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('visible'));
+  $(screenId).classList.add('visible');
+}
+function toast(msg, ms = 3000) {
+  const t = $('toast'); t.textContent = msg; t.classList.add('visible');
+  setTimeout(() => t.classList.remove('visible'), ms);
+}
+function genCode() {
+  const letters = 'ABCDEFGHJKLMNPQRSTUVWXYZ'; // sin I y O
+  let s = '';
+  for (let i = 0; i < 4; i++) s += letters[Math.floor(Math.random() * letters.length)];
+  return s;
+}
+function serverNow() { return Date.now() + serverOffset; }
+function formatClock(ms) {
+  const t = Math.max(0, ms / 1000);
+  const m = Math.floor(t / 60);
+  const s = Math.floor(t % 60);
+  const cs = Math.floor((t * 100) % 100);
+  return `${m}:${s.toString().padStart(2,'0')}.${cs.toString().padStart(2,'0')}`;
+}
+function formatBudget(ms) {
+  const t = Math.max(0, ms / 1000);
+  const m = Math.floor(t / 60);
+  const s = (t % 60).toFixed(1);
+  return `${m}:${s.padStart(4, '0')}`;
+}
+function timeToWords(ms) {
+  const tw = T.timeWords;
+  const totalSec = Math.round(ms / 1000);
+  if (totalSec === 0) return tw.lessSec;
+  if (totalSec < 60) return totalSec === 1 ? tw.oneSec : tw.secs(totalSec);
+  const m = Math.floor(totalSec / 60);
+  const s = totalSec % 60;
+  const minPart = m === 1 ? tw.oneMin : tw.mins(m);
+  if (s === 0) return minPart;
+  const secPart = s === 1 ? tw.oneSec : tw.secs(s);
+  return `${minPart} ${tw.and} ${secPart}`;
+}
+
+// serverOffset = 0 (sin SDK, usamos Date.now() directamente)
+
+// =====================================================================
+// AUDIO
+// =====================================================================
+let audioCtx = null;
+let masterGain = null;       // volumen maestro (se baja a 0 al silenciar)
+let muted = false;
+try { muted = localStorage.getItem('subasta_muted') === '1'; } catch (e) {}
+
+// Música ambiente
+// Tic-tac de ronda
+let tickTimer = null;
+
+function ensureAudio() {
+  if (!audioCtx) {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (AC) {
+      audioCtx = new AC();
+      masterGain = audioCtx.createGain();
+      masterGain.gain.value = muted ? 0 : 1;
+      masterGain.connect(audioCtx.destination);
+    }
+  }
+  if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+}
+
+function setMuted(m) {
+  muted = m;
+  try { localStorage.setItem('subasta_muted', m ? '1' : '0'); } catch (e) {}
+  if (masterGain && audioCtx) {
+    masterGain.gain.setTargetAtTime(m ? 0 : 1, audioCtx.currentTime, 0.05);
+  }
+  // La voz se controla aparte (no pasa por Web Audio)
+  if (m && 'speechSynthesis' in window) window.speechSynthesis.cancel();
+  // La música (elementos <audio>) tampoco pasa por masterGain: la controlo aquí
+  if (m) {
+    musicEls.forEach(el => { if (el) el.volume = 0; });
+    stopMenuMusic();
+  } else if (roundActive && currentTrack >= 0 && musicEls[currentTrack]) {
+    // Reanudar la pista de la ronda en curso
+    const el = musicEls[currentTrack];
+    el.play().then(() => fadeAudio(el, 0.55, 600)).catch(() => {});
+  } else if (!document.body.classList.contains('in-game')) {
+    // Estamos en una pantalla de menú: reanudar la música del menú
+    startMenuMusic();
+  }
+}
+
+// ---- Música de fondo: dos pistas MP3 que alternan por ronda ----
+// IMPORTANTE: la música NO se corta al pulsar STOP (eso delataría al jugador
+// ante los demás en la misma habitación). Solo se detiene al acabar la ronda.
+let musicEls = [];
+let currentTrack = -1;
+let musicFadeTimer = null;
+
+function initMusic() {
+  if (musicEls.length) return;
+  musicEls = [document.getElementById('music-1'), document.getElementById('music-2')];
+  musicEls.forEach(el => { if (el) el.volume = 0; });
+}
+
+function fadeAudio(el, target, ms) {
+  if (!el) return;
+  const steps = 20;
+  const stepMs = ms / steps;
+  const start = el.volume;
+  let i = 0;
+  const iv = setInterval(() => {
+    i++;
+    const v = start + (target - start) * (i / steps);
+    el.volume = Math.max(0, Math.min(1, v));
+    if (i >= steps) {
+      clearInterval(iv);
+      if (target === 0) { try { el.pause(); } catch (e) {} }
+    }
+  }, stepMs);
+}
+
+// Arranca la pista correspondiente a la ronda (alternando)
+function playRoundMusic(round) {
+  initMusic();
+  if (muted) return;
+  const idx = (round - 1) % 2;   // ronda 1→pista0, 2→pista1, 3→pista0...
+  currentTrack = idx;
+  const el = musicEls[idx];
+  const other = musicEls[1 - idx];
+  if (other) fadeAudio(other, 0, 400);
+  if (el) {
+    el.currentTime = 0;
+    el.volume = 0;
+    el.play().then(() => fadeAudio(el, 0.55, 800)).catch(() => {});
+  }
+}
+
+// Detiene la música (al acabar la ronda — momento compartido, no delata)
+function stopRoundMusic() {
+  musicEls.forEach(el => fadeAudio(el, 0, 500));
+  currentTrack = -1;
+}
+
+// ---- Música del menú (pantallas previas al juego) ----
+let menuMusicEl = null;
+function startMenuMusic() {
+  if (muted) return;
+  if (!menuMusicEl) menuMusicEl = document.getElementById('music-menu');
+  if (!menuMusicEl) return;
+  if (!menuMusicEl.paused) return; // ya suena
+  menuMusicEl.volume = 0;
+  menuMusicEl.play().then(() => fadeAudio(menuMusicEl, 0.5, 1000)).catch(() => {});
+}
+function stopMenuMusic() {
+  if (!menuMusicEl) menuMusicEl = document.getElementById('music-menu');
+  if (menuMusicEl && !menuMusicEl.paused) fadeAudio(menuMusicEl, 0, 500);
+}
+
+// ---- Tic-tac de ronda: un click que se acelera con el tiempo ----
+function startTick() {
+  stopTick();
+  if (!audioCtx) return;
+  let elapsed = 0;
+  const schedule = () => {
+    // Intervalo decreciente: empieza a ~900ms, baja hacia ~280ms
+    const interval = Math.max(280, 900 - elapsed * 18);
+    tickTimer = setTimeout(() => {
+      playTick(elapsed);
+      elapsed += 1;
+      schedule();
+    }, interval);
+  };
+  schedule();
+}
+function stopTick() {
+  if (tickTimer) { clearTimeout(tickTimer); tickTimer = null; }
+}
+function playTick(elapsed) {
+  if (!audioCtx || muted) return;
+  const now = audioCtx.currentTime;
+  const osc = audioCtx.createOscillator();
+  const g = audioCtx.createGain();
+  osc.type = 'square';
+  // El tono sube ligeramente con la tensión
+  osc.frequency.value = 1100 + Math.min(elapsed * 12, 500);
+  const vol = 0.04 + Math.min(elapsed * 0.002, 0.06);
+  g.gain.setValueAtTime(0, now);
+  g.gain.linearRampToValueAtTime(vol, now + 0.002);
+  g.gain.exponentialRampToValueAtTime(0.0001, now + 0.04);
+  osc.connect(g); g.connect(masterGain);
+  osc.start(now); osc.stop(now + 0.05);
+}
+
+function playChime() {
+  if (!audioCtx) return;
+  const now = audioCtx.currentTime;
+  const notes = [
+    { freq: 523.25, delay: 0.00 },
+    { freq: 659.25, delay: 0.06 },
+    { freq: 783.99, delay: 0.12 }
+  ];
+  const partials = [
+    { mult: 1.0, gain: 1.0, decay: 1.8 },
+    { mult: 2.01, gain: 0.4, decay: 1.2 },
+    { mult: 3.0, gain: 0.18, decay: 0.8 }
+  ];
+  const master = audioCtx.createGain();
+  master.gain.value = 0.35;
+  master.connect(masterGain);
+  notes.forEach(n => {
+    partials.forEach(p => {
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = 'sine';
+      osc.frequency.value = n.freq * p.mult;
+      const peak = 0.18 * p.gain;
+      const start = now + n.delay;
+      gain.gain.setValueAtTime(0, start);
+      gain.gain.linearRampToValueAtTime(peak, start + 0.004);
+      gain.gain.exponentialRampToValueAtTime(0.0001, start + p.decay);
+      osc.connect(gain); gain.connect(master);
+      osc.start(start); osc.stop(start + p.decay + 0.1);
+    });
+  });
+}
+
+// Golpe de martillo de subastador
+function playGavel() {
+  if (!audioCtx) return;
+  const now = audioCtx.currentTime;
+  // Componente de impacto: ruido filtrado corto
+  const bufferSize = audioCtx.sampleRate * 0.08;
+  const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+  const data = buffer.getChannelData(0);
+  for (let i = 0; i < bufferSize; i++) {
+    data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / bufferSize, 3);
+  }
+  const noise = audioCtx.createBufferSource();
+  noise.buffer = buffer;
+  const bp = audioCtx.createBiquadFilter();
+  bp.type = 'bandpass'; bp.frequency.value = 200; bp.Q.value = 1.2;
+  const ng = audioCtx.createGain();
+  ng.gain.value = 0.6;
+  noise.connect(bp); bp.connect(ng); ng.connect(masterGain);
+  noise.start(now);
+
+  // Componente de madera: tono grave muy corto
+  const osc = audioCtx.createOscillator();
+  const g = audioCtx.createGain();
+  osc.type = 'sine'; osc.frequency.setValueAtTime(180, now);
+  osc.frequency.exponentialRampToValueAtTime(80, now + 0.08);
+  g.gain.setValueAtTime(0.5, now);
+  g.gain.exponentialRampToValueAtTime(0.0001, now + 0.12);
+  osc.connect(g); g.connect(masterGain);
+  osc.start(now); osc.stop(now + 0.15);
+}
+
+function playGoldChime() {
+  if (!audioCtx) return;
+  const now = audioCtx.currentTime;
+  const notes = [523.25, 659.25, 783.99, 1046.50, 1318.51];
+  const master = audioCtx.createGain();
+  master.gain.value = 0.3;
+  master.connect(masterGain);
+  notes.forEach((freq, i) => {
+    const osc = audioCtx.createOscillator();
+    const g = audioCtx.createGain();
+    osc.type = 'triangle';
+    osc.frequency.value = freq;
+    const start = now + i * 0.10;
+    g.gain.setValueAtTime(0, start);
+    g.gain.linearRampToValueAtTime(0.18, start + 0.005);
+    g.gain.exponentialRampToValueAtTime(0.0001, start + 0.9);
+    osc.connect(g); g.connect(master);
+    osc.start(start); osc.stop(start + 1.0);
+  });
+}
+
+// Click satisfactorio al pulsar tu propio STOP
+function playClick() {
+  if (!audioCtx || muted) return;
+  const now = audioCtx.currentTime;
+  const osc = audioCtx.createOscillator();
+  const g = audioCtx.createGain();
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(720, now);
+  osc.frequency.exponentialRampToValueAtTime(420, now + 0.05);
+  g.gain.setValueAtTime(0.18, now);
+  g.gain.exponentialRampToValueAtTime(0.0001, now + 0.08);
+  osc.connect(g); g.connect(masterGain);
+  osc.start(now); osc.stop(now + 0.1);
+}
+
+function speak(text) {
+  if (!('speechSynthesis' in window) || muted) return;
+  window.speechSynthesis.cancel();
+  const utt = new SpeechSynthesisUtterance(text);
+  utt.lang = lang === 'en' ? 'en-US' : 'es-ES';
+  utt.rate = 0.95; utt.pitch = 1.0;
+  const voices = window.speechSynthesis.getVoices();
+  const want = lang === 'en' ? /^en/i : /^es/i;
+  const sp = voices.find(v => want.test(v.lang));
+  if (sp) utt.voice = sp;
+  window.speechSynthesis.speak(utt);
+}
+if ('speechSynthesis' in window) {
+  window.speechSynthesis.getVoices();
+  window.speechSynthesis.addEventListener?.('voiceschanged', () => window.speechSynthesis.getVoices());
+}
+
+// =====================================================================
+// NAVEGACIÓN UI
+// =====================================================================
+$('btn-create').addEventListener('click', () => {
+  ensureAudio(); warmVoice(); startMenuMusic();
+  show('screen-create');
+});
+$('btn-join').addEventListener('click', () => {
+  ensureAudio(); warmVoice(); startMenuMusic();
+  show('screen-join');
+});
+$('btn-host-back').addEventListener('click', () => show('screen-home'));
+$('btn-join-back').addEventListener('click', () => show('screen-home'));
+
+function warmVoice() {
+  if ('speechSynthesis' in window) {
+    const warm = new SpeechSynthesisUtterance(' ');
+    warm.volume = 0; window.speechSynthesis.speak(warm);
+  }
+}
+
+// =====================================================================
+// HOST: CREAR SALA
+// =====================================================================
+$('btn-host-continue').addEventListener('click', async () => {
+  const name = $('host-name').value.trim();
+  if (!name) { toast(T.toastNoName); return; }
+  myName = name;
+
+  // Generar código único
+  let code;
+  for (let i = 0; i < 5; i++) {
+    code = genCode();
+    const snap = await get(ref(db, 'rooms/' + code));
+    if (!snap.exists()) break;
+  }
+  roomCode = code;
+  roomRef = ref(db, 'rooms/' + code);
+
+  // Crear la sala
+  await set(roomRef, {
+    code,
+    createdAt: serverTimestamp(),
+    state: 'lobby',
+    mode: { rounds: 10, timeMs: 180000 },
+    currentRound: 0,
+    goldRound: -1,
+    roundStartAt: 0,
+    players: {
+      [myId]: {
+        name: myName, colorIdx: 0,
+        wins: 0, budgetMs: 180000, joinedAt: serverTimestamp(),
+        connected: true
+      }
+    }
+  });
+
+  await onDisconnect(ref(db, `rooms/${code}/players/${myId}/connected`)).set(false);
+  saveRoomState();
+  enterLobby();
+});
+
+// =====================================================================
+// GUEST: UNIRSE
+// =====================================================================
+$('btn-join-continue').addEventListener('click', async () => {
+  const code = $('join-code').value.trim().toUpperCase();
+  const name = $('join-name').value.trim();
+  if (code.length !== 4) { toast(T.toastNoCode); return; }
+  if (!name) { toast(T.toastNoName); return; }
+
+  const r = ref(db, 'rooms/' + code);
+  const snap = await get(r);
+  if (!snap.exists()) { toast(T.toastNoRoom); return; }
+  const data = snap.val();
+  if (data.state !== 'lobby') { toast(T.toastStarted); return; }
+  const playerCount = Object.keys(data.players || {}).length;
+  if (playerCount >= 8) { toast(T.toastFull); return; }
+
+  myName = name;
+  roomCode = code; roomRef = r;
+
+  const colorIdx = playerCount;
+  await update(ref(db, `rooms/${code}/players/${myId}`), {
+    name: myName, colorIdx,
+    wins: 0, budgetMs: 180000, joinedAt: serverTimestamp(),
+    connected: true
+  });
+  await onDisconnect(ref(db, `rooms/${code}/players/${myId}/connected`)).set(false);
+  saveRoomState();
+  enterLobby();
+});
+
+// =====================================================================
+// LOBBY
+// =====================================================================
+function enterLobby() {
+  show('screen-lobby');
+  $('lobby-code').textContent = roomCode;
+  saveRoomState();
+  startMenuMusic();   // música de menú continúa en el lobby
+
+  // Inicializo amHost antes del primer update
+  amHost = computeAmHost();
+  $('host-actions').style.display = amHost ? 'flex' : 'none';
+  $('guest-waiting').style.display = amHost ? 'none' : 'block';
+
+  // Listener del selector de modo (siempre activo: por si paso a ser host)
+  document.querySelectorAll('#host-actions .mode-card').forEach(card => {
+    card.onclick = () => {
+      if (!amHost) return;
+      document.querySelectorAll('#host-actions .mode-card').forEach(c => c.classList.remove('selected'));
+      card.classList.add('selected');
+      selectedMode = {
+        rounds: parseInt(card.dataset.rounds),
+        time: parseInt(card.dataset.time)
+      };
+      update(roomRef, {
+        mode: { rounds: selectedMode.rounds, timeMs: selectedMode.time * 1000 }
+      });
+    };
+  });
+
+  // Suscribirse al estado de la sala
+  const unsub = onValue(roomRef, snap => {
+    if (!snap.exists()) {
+      toast(T.toastClosed);
+      clearRoomState();
+      leaveRoom();
+      return;
+    }
+    roomData = snap.val();
+    handleRoomUpdate();
+  });
+  unsubs.push(() => off(roomRef));
+}
+
+function handleRoomUpdate() {
+  if (!roomData) return;
+
+  // REVANCHA: si el estado vuelve a lobby mientras estamos en la pantalla final
+  if (roomData.state === 'lobby' && $('final').classList.contains('visible')) {
+    showLobbyFromRevancha();
+    return;
+  }
+
+  // Recalcular si soy host dinámicamente
+  const wasHost = amHost;
+  amHost = computeAmHost();
+  if (wasHost !== amHost && $('screen-lobby').classList.contains('visible')) {
+    $('host-actions').style.display = amHost ? 'flex' : 'none';
+    $('guest-waiting').style.display = amHost ? 'none' : 'block';
+  }
+
+  if (roomData.state === 'lobby') {
+    renderLobbyPlayers();
+  }
+  if (roomData.state === 'playing' && !$('screen-game').classList.contains('visible') && !$('reveal').classList.contains('visible')) {
+    enterGame();
+  }
+  if (roomData.state === 'playing') {
+    onGameTick();
+    if (amHost) {
+      hostAutoStopDisconnected();
+      hostMaybeFinishRound();
+    }
+  }
+  if (roomData.state === 'ended') {
+    onGameEnd();
+  }
+}
+
+function renderLobbyPlayers() {
+  const wrap = $('lobby-players'); wrap.innerHTML = '';
+  const players = roomData.players || {};
+  const arr = Object.entries(players).map(([id, p]) => ({ id, ...p }))
+    .sort((a, b) => (a.joinedAt || 0) - (b.joinedAt || 0));
+  const hostId = currentHostId();
+  arr.forEach((p, i) => {
+    const el = document.createElement('div');
+    el.className = 'lobby-player';
+    if (!p.connected) el.classList.add('disconnected');
+    const color = COLORS[p.colorIdx % COLORS.length];
+    el.style.setProperty('--player-color', color);
+    el.innerHTML = `
+      <span class="lp-pos">${(i+1).toString().padStart(2,'0')}</span>
+      <span class="lp-name">${escapeHtml(p.name)}</span>
+      <span class="lp-me">${p.id === myId ? T.roleYou : (p.id === hostId ? T.roleHost : '')}</span>
+    `;
+    wrap.appendChild(el);
+  });
+}
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+// =====================================================================
+// I18N
+// =====================================================================
+const STRINGS = {
+  es: {
+    appTitleA: 'Subasta', appTitleB: 'de Tiempo',
+    subMulti: 'multijugador', subHost: 'jefe de sala', subJoin: 'unirse',
+    btnCreate: 'Crear sala', btnJoin: 'Unirse a sala',
+    yourName: 'Tu nombre', roomCode: 'Código de sala',
+    btnHostContinue: 'Crear sala →', btnJoinContinue: 'Entrar →',
+    btnBack: '← volver',
+    lobbyRoomLabel: 'sala', shareCode: 'comparte este código con los demás jugadores',
+    modeBreve: 'Breve', modePlena: 'Plena', modeLarga: 'Larga',
+    rounds: 'rondas', perPlayerShort: 'por jug.',
+    btnStart: 'Empezar partida', waitingHost: 'esperando al jefe',
+    btnLeaveRoom: '← salir de la sala',
+    roleYou: 'tú', roleHost: 'jefe',
+    timeRemaining: 'Te quedan', stopLabel: 'PARAR',
+    roundOf: 'Ronda', of: '/',
+    roundOfFmt: (cur, total) => `Ronda ${cur} / ${total}`,
+    splashRound: 'Ronda',
+    goldRoundLabel: 'Ronda', goldRoundName: 'de Oro',
+    goldRoundSub: (b) => `vale por ${b} victorias`,
+    revealRound: (n) => `Ronda ${n} · resultado`,
+    revealWins: 'gana', revealBid: 'apostó',
+    goldMark: '★ ronda de oro · vale doble ★',
+    finalCrown: 'Vencedor',
+    finalWinsFmt: (n) => `<b>${n}</b> &nbsp;rondas ganadas`,
+    rowRounds: 'rondas',
+    btnNewGame: 'Otra partida',
+    historyTitle: 'Historial', historySub: 'rondas jugadas',
+    historyEmpty: 'aún no se ha jugado ninguna ronda',
+    btnClose: 'cerrar',
+    last: 'Última',
+    toastNoName: 'Pon un nombre',
+    toastNoCode: 'El código son 4 letras',
+    toastNoRoom: 'Esa sala no existe',
+    toastStarted: 'La partida ya empezó',
+    toastFull: 'Sala llena (8 jugadores máximo)',
+    toastClosed: 'La sala se cerró',
+    toastMinPlayers: 'Mínimo 2 jugadores',
+    speakWonGold: (name, time) => `¡Ronda de oro! Adjudicado a ${name} por ${time}. Dos victorias.`,
+    speakWon: (name, time) => {
+      const frases = [
+        `Adjudicado a ${name} por ${time}.`,
+        `${name} se lleva la ronda por ${time}.`
+      ];
+      return frases[Math.floor(Math.random() * frases.length)];
+    },
+    speakFinal: (name, wins) => `Vencedor: ${name}. ${wins} rondas ganadas.`,
+    tieTitle: 'Ronda desierta',
+    tieShort: 'desierta',
+    speakTie: 'Empate. Ronda desierta. Nadie se la lleva.',
+    statAgresivo: 'El más agresivo',
+    statTacano: 'El más tacaño',
+    statCara: 'Victoria más cara',
+    statBarata: 'Victoria más barata',
+    shareBtn: 'Compartir por WhatsApp',
+    shareMsg: (code, url) => `¡Únete a mi sala de Subasta de Tiempo! Código: ${code}\n${url}`,
+    tutTitle: 'Cómo se juega',
+    tutSub: 'subasta de tiempo',
+    tutStep1: 'Cada jugador tiene una <b>bolsa de tiempo</b>. Es tu presupuesto para toda la partida.',
+    tutStep2: 'En cada ronda, todos los relojes corren a la vez. Pulsa <b>PARAR</b> cuando quieras.',
+    tutStep3: 'El <b>último en parar gana</b> la ronda. Pero ojo: <b>todos pierden</b> el tiempo que han dejado correr, ganen o no.',
+    tutStep4: 'Solo se anuncia cuánto gastó el ganador. <b>Tu tiempo restante es secreto</b>.',
+    tutStep5: 'Si los <b>dos que más aguantan</b> paran en el mismo segundo, se disputan la victoria en empate y la ronda queda <b>desierta</b>: nadie puntúa, pero todos pierden su tiempo.',
+    tutStep6: 'Una ronda al azar es la <b>Ronda de Oro</b>: vale por dos victorias. Aparece por sorpresa.',
+    tutStep7: 'Gana quien <b>más rondas</b> se lleve al final. Administra tu tiempo: gastar de más te deja sin munición.',
+    timeWords: {
+      lessSec: 'menos de un segundo',
+      oneSec: 'un segundo', secs: (n) => `${n} segundos`,
+      oneMin: 'un minuto', mins: (n) => `${n} minutos`,
+      and: 'y'
+    }
+  },
+  en: {
+    appTitleA: 'Time', appTitleB: 'Auction',
+    subMulti: 'multiplayer', subHost: 'host', subJoin: 'join',
+    btnCreate: 'Create room', btnJoin: 'Join room',
+    yourName: 'Your name', roomCode: 'Room code',
+    btnHostContinue: 'Create room →', btnJoinContinue: 'Join →',
+    btnBack: '← back',
+    lobbyRoomLabel: 'room', shareCode: 'share this code with the other players',
+    modeBreve: 'Short', modePlena: 'Medium', modeLarga: 'Long',
+    rounds: 'rounds', perPlayerShort: 'per pl.',
+    btnStart: 'Start match', waitingHost: 'waiting for host',
+    btnLeaveRoom: '← leave room',
+    roleYou: 'you', roleHost: 'host',
+    timeRemaining: 'You have', stopLabel: 'STOP',
+    roundOf: 'Round', of: '/',
+    roundOfFmt: (cur, total) => `Round ${cur} / ${total}`,
+    splashRound: 'Round',
+    goldRoundLabel: 'Golden', goldRoundName: 'Round',
+    goldRoundSub: (b) => `counts for ${b} wins`,
+    revealRound: (n) => `Round ${n} · result`,
+    revealWins: 'wins', revealBid: 'bid',
+    goldMark: '★ golden round · double value ★',
+    finalCrown: 'Winner',
+    finalWinsFmt: (n) => `<b>${n}</b> &nbsp;rounds won`,
+    rowRounds: 'rounds',
+    btnNewGame: 'New match',
+    historyTitle: 'History', historySub: 'rounds played',
+    historyEmpty: 'no rounds played yet',
+    btnClose: 'close',
+    last: 'Last',
+    toastNoName: 'Enter a name',
+    toastNoCode: 'Code is 4 letters',
+    toastNoRoom: 'No such room',
+    toastStarted: 'Match already started',
+    toastFull: 'Room full (8 players max)',
+    toastClosed: 'Room closed',
+    toastMinPlayers: 'Minimum 2 players',
+    speakWonGold: (name, time) => `Golden round! Sold to ${name} for ${time}. Two wins.`,
+    speakWon: (name, time) => {
+      const phrases = [
+        `Sold to ${name} for ${time}.`,
+        `${name} takes the round for ${time}.`
+      ];
+      return phrases[Math.floor(Math.random() * phrases.length)];
+    },
+    speakFinal: (name, wins) => `Winner: ${name}. ${wins} rounds won.`,
+    tieTitle: 'Void round',
+    tieShort: 'void',
+    speakTie: 'Tie. Void round. Nobody takes it.',
+    statAgresivo: 'Most aggressive',
+    statTacano: 'Most frugal',
+    statCara: 'Priciest win',
+    statBarata: 'Cheapest win',
+    shareBtn: 'Share on WhatsApp',
+    shareMsg: (code, url) => `Join my Time Auction room! Code: ${code}\n${url}`,
+    tutTitle: 'How to play',
+    tutSub: 'time auction',
+    tutStep1: 'Each player has a <b>time budget</b> for the whole game.',
+    tutStep2: 'Every round, all clocks run at once. Tap <b>STOP</b> whenever you want.',
+    tutStep3: 'The <b>last to stop wins</b> the round. But beware: <b>everyone loses</b> the time they let run, win or not.',
+    tutStep4: 'Only the winner\'s cost is announced. <b>Your remaining time is secret</b>.',
+    tutStep5: 'If the <b>two who hold out longest</b> stop in the same second, they tie for the win and the round is <b>void</b>: nobody scores, but everyone loses their time.',
+    tutStep6: 'A random round is the <b>Golden Round</b>: worth two wins. It appears by surprise.',
+    tutStep7: 'Whoever wins <b>the most rounds</b> wins. Manage your time: overspending leaves you with no ammo.',
+    timeWords: {
+      lessSec: 'less than a second',
+      oneSec: 'one second', secs: (n) => `${n} seconds`,
+      oneMin: 'one minute', mins: (n) => `${n} minutes`,
+      and: 'and'
+    }
+  }
+};
+const lang = (navigator.language || 'es').toLowerCase().startsWith('en') ? 'en' : 'es';
+const T = STRINGS[lang];
+
+function applyI18n() {
+  document.querySelectorAll('[data-i18n]').forEach(el => {
+    const key = el.dataset.i18n;
+    if (T[key] !== undefined) {
+      // Si la traducción contiene HTML (ej: <b>), usar innerHTML
+      if (typeof T[key] === 'string' && T[key].indexOf('<') !== -1) {
+        el.innerHTML = T[key];
+      } else {
+        el.textContent = T[key];
+      }
+    }
+  });
+  document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+    const key = el.dataset.i18nPlaceholder;
+    if (T[key] !== undefined) el.placeholder = T[key];
+  });
+  document.documentElement.lang = lang;
+}
+
+// =====================================================================
+// TEMA CLARO / OSCURO
+// =====================================================================
+function applyTheme(light) {
+  document.body.classList.toggle('light', light);
+  // Ajustar el color de la barra del navegador / status bar
+  const tc = document.querySelector('meta[name="theme-color"]');
+  if (tc) tc.setAttribute('content', light ? '#f4f0e6' : '#0c0a08');
+  try { localStorage.setItem('subasta_theme', light ? 'light' : 'dark'); } catch (e) {}
+}
+// Aplicar tema guardado al arrancar (antes de pintar, para evitar parpadeo)
+(function initTheme() {
+  let saved = 'dark';
+  try { saved = localStorage.getItem('subasta_theme') || 'dark'; } catch (e) {}
+  document.documentElement.classList.remove('pre-light');
+  applyTheme(saved === 'light');
+})();
+document.getElementById('theme-toggle').addEventListener('click', () => {
+  applyTheme(!document.body.classList.contains('light'));
+});
+
+// Interruptor de sonido
+(function initSoundToggle() {
+  const btn = document.getElementById('sound-toggle');
+  if (muted) btn.classList.add('muted');
+  btn.addEventListener('click', () => {
+    ensureAudio();
+    const nowMuted = !btn.classList.contains('muted');
+    btn.classList.toggle('muted', nowMuted);
+    setMuted(nowMuted);
+  });
+})();
+
+// Botón de tutorial
+document.getElementById('help-btn').addEventListener('click', () => {
+  $('tutorial-overlay').classList.add('visible');
+});
+document.getElementById('tut-close').addEventListener('click', () => {
+  $('tutorial-overlay').classList.remove('visible');
+});
+
+// El "jefe" es siempre el primer jugador CONECTADO en orden de entrada.
+// Si quien era jefe se desconecta, el siguiente toma el relevo sin que nadie haga nada.
+function computeAmHost() {
+  if (!roomData || !roomData.players) return false;
+  const connected = Object.entries(roomData.players)
+    .filter(([, p]) => p.connected)
+    .sort((a, b) => (a[1].joinedAt || 0) - (b[1].joinedAt || 0));
+  if (connected.length === 0) return false;
+  return connected[0][0] === myId;
+}
+
+function currentHostId() {
+  if (!roomData || !roomData.players) return null;
+  const connected = Object.entries(roomData.players)
+    .filter(([, p]) => p.connected)
+    .sort((a, b) => (a[1].joinedAt || 0) - (b[1].joinedAt || 0));
+  return connected.length > 0 ? connected[0][0] : null;
+}
+
+// HOST: empezar partida
+$('btn-start').addEventListener('click', async () => {
+  if (!amHost) return;
+  const players = Object.keys(roomData.players || {});
+  if (players.length < 2) { toast(T.toastMinPlayers); return; }
+  const rounds = selectedMode.rounds;
+  const timeMs = selectedMode.time * 1000;
+  // Sorteo Ronda de Oro (evitamos la primera ronda)
+  const gold = 2 + Math.floor(Math.random() * (rounds - 1));
+
+  lastFinishedRound = 0;  // reset del guard al empezar nueva partida
+
+  // Resetear budgets y wins por si acaso
+  const updates = {};
+  Object.keys(roomData.players).forEach(pid => {
+    updates[`players/${pid}/budgetMs`] = timeMs;
+    updates[`players/${pid}/wins`] = 0;
+  });
+  updates.mode = { rounds, timeMs };
+  updates.goldRound = gold;
+  updates.currentRound = 0;
+  updates.history = null;
+  updates.stops = null;
+  updates.lastResult = null;
+  updates.state = 'playing';
+  await update(roomRef, updates);
+
+  // Y arrancar la primera ronda
+  setTimeout(() => hostStartNextRound(), 200);
+});
+
+$('btn-lobby-leave').addEventListener('click', leaveRoom);
+$('btn-revancha').addEventListener('click', hostRevancha);
+$('btn-share').addEventListener('click', () => {
+  const url = location.origin + location.pathname + '?join=' + roomCode;
+  const msg = T.shareMsg(roomCode, url);
+  // Web Share API nativa (deja elegir WhatsApp, Telegram, etc.)
+  if (navigator.share) {
+    navigator.share({ title: 'Subasta de Tiempo', text: msg }).catch(() => {});
+  } else {
+    // Fallback: abre WhatsApp directamente
+    window.open('https://wa.me/?text=' + encodeURIComponent(msg), '_blank');
+  }
+});
+
+async function leaveRoom() {
+  stopTick();
+  stopRoundMusic();
+  document.body.classList.remove('in-game');
+  if (roomRef) {
+    // Solo me quito a mí mismo. Si quedo solo y la sala estaba en lobby, la borro.
+    try {
+      const snap = await get(roomRef);
+      const data = snap.exists() ? snap.val() : null;
+      const others = data && data.players
+        ? Object.keys(data.players).filter(pid => pid !== myId)
+        : [];
+      if (others.length === 0) {
+        await remove(roomRef);
+      } else {
+        await remove(ref(db, `rooms/${roomCode}/players/${myId}`));
+      }
+    } catch (e) {}
+  }
+  clearRoomState();
+  unsubs.forEach(u => { try { u(); } catch(e){} });
+  unsubs = [];
+  roomRef = null; roomCode = null; roomData = null;
+  amHost = false;
+  show('screen-home');
+}
+
+// =====================================================================
+// JUEGO: CICLO DE RONDAS (host es árbitro)
+// =====================================================================
+async function hostStartNextRound() {
+  if (!amHost) return;
+  const next = (roomData.currentRound || 0) + 1;
+  if (next > roomData.mode.rounds) {
+    await update(roomRef, { state: 'ended' });
+    return;
+  }
+  // Limpiar stops anteriores y arrancar
+  await update(roomRef, {
+    currentRound: next,
+    roundStartAt: serverTimestamp(),
+    stops: null
+  });
+}
+
+// Si hay jugadores desconectados sin pulsar en la ronda actual, el host les
+// marca stop=0 automáticamente para no bloquear el juego.
+function hostAutoStopDisconnected() {
+  if (!amHost || !roomData || roomData.state !== 'playing') return;
+  const cur = roomData.currentRound || 0;
+  if (cur === 0) return;
+  if (cur <= lastFinishedRound) return;
+  const stops = (roomData.stops && roomData.stops['r' + cur]) || {};
+  const players = roomData.players || {};
+  Object.entries(players).forEach(([pid, p]) => {
+    if (!p.connected && stops[pid] === undefined) {
+      set(ref(db, `rooms/${roomCode}/stops/r${cur}/${pid}`), {
+        elapsed: 0,
+        ts: serverTimestamp(),
+        auto: true
+      }).catch(() => {});
+    }
+  });
+}
+
+// Detectar fin de ronda (todos han parado) → desde cliente del host
+function hostMaybeFinishRound() {
+  if (!amHost || !roomData) return;
+  if (roomData.state !== 'playing') return;
+  const cur = roomData.currentRound || 0;
+  if (cur === 0) return;
+  if (cur <= lastFinishedRound) return;  // ya cerrada esta ronda
+
+  const players = roomData.players || {};
+  const stops = (roomData.stops && roomData.stops['r' + cur]) || {};
+  const playerIds = Object.keys(players);
+  if (playerIds.length === 0) return;
+  const allStopped = playerIds.every(pid => stops[pid] !== undefined);
+  if (!allStopped) return;
+
+  lastFinishedRound = cur;  // marcamos ANTES de actualizar
+
+  // Calcular ranking por elapsed descendente
+  const ranking = playerIds
+    .map(pid => ({ pid, elapsed: stops[pid].elapsed || 0 }))
+    .sort((a, b) => b.elapsed - a.elapsed);
+
+  const winnerId = ranking[0].pid;
+  const winnerElapsed = ranking[0].elapsed;
+
+  // EMPATE: si el 1º y el 2º pararon en el MISMO segundo entero → ronda desierta
+  let isTie = false;
+  if (ranking.length >= 2) {
+    const topSec = Math.floor(ranking[0].elapsed / 1000);
+    const secondSec = Math.floor(ranking[1].elapsed / 1000);
+    if (topSec === secondSec) isTie = true;
+  }
+
+  const isGold = (cur === roomData.goldRound);
+  const winsGained = isGold ? 2 : 1;
+
+  const updates = {};
+  // Todos pierden el tiempo que gastaron (pase lo que pase)
+  playerIds.forEach(pid => {
+    const cost = stops[pid].elapsed || 0;
+    const newBudget = Math.max(0, (players[pid].budgetMs || 0) - cost);
+    updates[`players/${pid}/budgetMs`] = newBudget;
+  });
+
+  if (isTie) {
+    // Ronda desierta: nadie suma victoria
+    updates[`history/r${cur}`] = {
+      tie: true, costMs: winnerElapsed, gold: isGold, at: serverTimestamp()
+    };
+    updates['lastResult'] = {
+      round: cur, tie: true, costMs: winnerElapsed, gold: isGold, ts: serverTimestamp()
+    };
+  } else {
+    updates[`players/${winnerId}/wins`] = (players[winnerId].wins || 0) + winsGained;
+    updates[`history/r${cur}`] = {
+      winnerId, costMs: winnerElapsed, gold: isGold, at: serverTimestamp()
+    };
+    updates['lastResult'] = {
+      round: cur, winnerId, costMs: winnerElapsed, gold: isGold, ts: serverTimestamp()
+    };
+  }
+  update(roomRef, updates);
+}
+
+// =====================================================================
+// JUEGO: VISTA DEL JUGADOR
+// =====================================================================
+let revealShownForRound = -1;
+
+
+
+let lastRoundSeen = 0;
+
+function enterGame() {
+  show('screen-game');
+  document.body.classList.add('in-game');
+  myStopped = false;
+  ensureAudio();
+  initMusic();
+  stopMenuMusic();   // la música del menú para al empezar la partida
+  // Configurar la pantalla a mi color
+  const me = roomData.players[myId];
+  if (!me) { leaveRoom(); return; }
+  const myColor = COLORS[me.colorIdx % COLORS.length];
+  document.documentElement.style.setProperty('--player-color', myColor);
+  $('game-name').textContent = me.name;
+  $('game-wins').textContent = me.wins || 0;
+  $('game-budget').textContent = formatBudget(me.budgetMs);
+
+  // Construir puntos de progreso
+  const prog = $('game-progress'); prog.innerHTML = '';
+  for (let i = 1; i <= roomData.mode.rounds; i++) {
+    const d = document.createElement('span');
+    d.className = 'dot'; d.id = 'dot-' + i;
+    prog.appendChild(d);
+  }
+
+  // Botón parar
+  $('game-stop').onclick = onPressStop;
+  $('game-stop').onpointerdown = (e) => { e.preventDefault(); onPressStop(); };
+
+  // Pulsar la barra de progreso abre el historial
+  $('game-progress').onclick = showHistory;
+  $('ho-close').onclick = () => $('history-overlay').classList.remove('visible');
+
+  // Marcador inicial
+  renderScoreboard();
+}
+
+function showHistory() {
+  if (!roomData) return;
+  const list = $('hist-list');
+  list.innerHTML = '';
+  const history = roomData.history || {};
+  const keys = Object.keys(history)
+    .sort((a, b) => parseInt(a.slice(1)) - parseInt(b.slice(1)));
+  if (keys.length === 0) {
+    const empty = document.createElement('div');
+    empty.className = 'hist-row empty';
+    empty.textContent = 'aún no se ha jugado ninguna ronda';
+    list.appendChild(empty);
+  } else {
+    keys.forEach(k => {
+      const r = history[k];
+      const round = parseInt(k.slice(1));
+      const row = document.createElement('div');
+      if (r.tie) {
+        row.className = 'hist-row tie';
+        row.style.setProperty('--winner-color', '#9a8f78');
+        row.innerHTML = `
+          <span class="h-round">R${round.toString().padStart(2,'0')}</span>
+          <span class="h-name" style="color:var(--muted);font-style:italic">${T.tieTitle}</span>
+          <span class="h-cost">—</span>
+        `;
+        list.appendChild(row);
+        return;
+      }
+      const winner = roomData.players[r.winnerId];
+      if (!winner) return;
+      const color = COLORS[winner.colorIdx % COLORS.length];
+      row.className = 'hist-row' + (r.gold ? ' gold' : '');
+      row.style.setProperty('--winner-color', color);
+      row.innerHTML = `
+        <span class="h-round">R${round.toString().padStart(2,'0')}</span>
+        <span class="h-name">${escapeHtml(winner.name)}${r.gold ? ' ★' : ''}</span>
+        <span class="h-cost">${formatBudget(r.costMs)}</span>
+      `;
+      list.appendChild(row);
+    });
+  }
+  $('history-overlay').classList.add('visible');
+}
+
+function onGameTick() {
+  if (!roomData || roomData.state !== 'playing') return;
+
+  // Si entramos por primera vez al juego sin haber pasado por enterGame
+  if (!$('screen-game').classList.contains('visible') && !$('reveal').classList.contains('visible')) {
+    enterGame();
+  }
+
+  // ¿Ha cambiado de ronda? Si sí, manejar transición
+  const cr = roomData.currentRound || 0;
+  if (cr !== lastRoundSeen && cr > 0) {
+    lastRoundSeen = cr;
+    onNewRound(cr);
+  }
+
+  // Mostrar resultado de la ronda anterior si lo tenemos y no lo mostramos aún
+  if (roomData.lastResult && roomData.lastResult.round !== revealShownForRound) {
+    revealShownForRound = roomData.lastResult.round;
+    showReveal(roomData.lastResult);
+  }
+
+  updateProgressDots();
+  renderScoreboard();
+
+}
+
+function onNewRound(round) {
+  const me = roomData.players[myId];
+  if (!me) return;
+  $('game-round').textContent = T.roundOfFmt(round, roomData.mode.rounds);
+  $('game-wins').textContent = me.wins || 0;
+  $('game-budget').textContent = formatBudget(me.budgetMs);
+  $('game-time').textContent = '0:00.00';
+  $('screen-game').classList.remove('pressed');
+  myStopped = false;
+
+  // Si es Ronda de Oro, primero el anuncio
+  const isGold = (round === roomData.goldRound);
+  if (isGold) {
+    $('gold-sub').innerHTML = T.goldRoundSub('<b>2</b>');
+    $('gold-announce').classList.add('visible');
+    playGoldChime();
+    setTimeout(() => {
+      $('gold-announce').classList.remove('visible');
+      showSplashThen(round, beginRoundTick);
+    }, 2200);
+  } else {
+    showSplashThen(round, beginRoundTick);
+  }
+}
+
+function showSplashThen(round, cb) {
+  const splash = $('splash');
+  $('splash-num').textContent = round;
+  splash.classList.add('visible');
+  setTimeout(() => {
+    splash.classList.remove('visible');
+    cb();
+  }, SPLASH_MS);
+}
+
+function beginRoundTick() {
+  roundActive = true;
+  $('screen-game').classList.add('round-live');
+  document.documentElement.style.setProperty('--breath-speed', '2.4s');
+  playRoundMusic(roomData.currentRound || 1);
+  // startTick();  // tic-tac desactivado (generaba estrés)
+  if (rafId) cancelAnimationFrame(rafId);
+  rafId = requestAnimationFrame(tick);
+}
+
+function tick() {
+  if (!roundActive || !roomData) return;
+  const startAt = roomData.roundStartAt;
+  if (!startAt) { rafId = requestAnimationFrame(tick); return; }
+  const me = roomData.players[myId];
+  if (me && !myStopped) {
+    const elapsedRaw = Math.max(0, serverNow() - startAt);
+    const budgetMs = me.budgetMs || 0;
+    // El reloj nunca supera tu presupuesto (cosmético + lógico)
+    const elapsed = Math.min(elapsedRaw, budgetMs);
+    $('game-time').textContent = formatClock(elapsed);
+    const remaining = Math.max(0, budgetMs - elapsedRaw);
+    $('game-budget').textContent = formatBudget(remaining);
+    // La respiración del botón se acelera con la tensión (de 2.4s a 0.7s)
+    const secs = elapsedRaw / 1000;
+    const breath = Math.max(0.7, 2.4 - secs * 0.06);
+    document.documentElement.style.setProperty('--breath-speed', breath.toFixed(2) + 's');
+    // Auto-stop si te quedas sin tiempo
+    if (remaining <= 0) onPressStop(true);
+  }
+  rafId = requestAnimationFrame(tick);
+}
+
+async function onPressStop(forced) {
+  if (!roundActive || myStopped) return;
+  const startAt = roomData.roundStartAt;
+  if (!startAt) return;
+  const me = roomData.players[myId];
+  if (!me) return;
+  const elapsed = Math.min(serverNow() - startAt, me.budgetMs || 0);
+  myStopped = true;
+
+  // Feedback SOLO visual en la propia pantalla: botón hundido + reloj congelado.
+  // SIN sonido ni vibración: cualquier señal audible/háptica delataría al jugador
+  // ante quien está al lado, que sabría que ha pulsado.
+  $('screen-game').classList.add('pressed');
+  $('game-time').textContent = formatClock(elapsed);
+  stopTick();
+
+  // Escribir mi stop. NOTA: la pantalla NO cambia visualmente para los DEMÁS
+  // (cada cual juega en su móvil; los demás no ven mi pantalla, mantenemos la cara de póker).
+  await set(ref(db, `rooms/${roomCode}/stops/r${roomData.currentRound}/${myId}`), {
+    elapsed,
+    ts: serverTimestamp()
+  });
+  // Si soy host, comprobar fin de ronda
+  if (amHost) hostMaybeFinishRound();
+}
+
+function updateProgressDots() {
+  if (!roomData) return;
+  const cur = roomData.currentRound || 0;
+  for (let i = 1; i <= roomData.mode.rounds; i++) {
+    const d = $('dot-' + i);
+    if (!d) continue;
+    d.classList.remove('current', 'done');
+    if (i < cur) d.classList.add('done');
+    else if (i === cur) d.classList.add('current');
+  }
+}
+
+function renderScoreboard() {
+  if (!roomData) return;
+  const wrap = $('scoreboard');
+  if (!wrap) return;
+  const players = Object.entries(roomData.players || {})
+    .map(([id, p]) => ({ id, ...p }))
+    .sort((a, b) => (a.joinedAt || 0) - (b.joinedAt || 0));
+
+  // Máximo de wins (para marcar al líder, solo si hay al menos uno con >0)
+  const maxWins = Math.max(0, ...players.map(p => p.wins || 0));
+
+  wrap.innerHTML = '';
+  players.forEach(p => {
+    const color = COLORS[p.colorIdx % COLORS.length];
+    const pill = document.createElement('div');
+    pill.className = 'sb-pill';
+    if (p.id === myId) pill.classList.add('me');
+    if (maxWins > 0 && (p.wins || 0) === maxWins) pill.classList.add('leader');
+    pill.style.setProperty('--sb-color', color);
+    pill.innerHTML = `
+      <span class="sb-name">${escapeHtml(p.name)}</span>
+      <span class="sb-wins">${p.wins || 0}</span>
+    `;
+    wrap.appendChild(pill);
+  });
+}
+
+function showReveal(result) {
+  roundActive = false;
+  if (rafId) cancelAnimationFrame(rafId);
+  $('screen-game').classList.remove('round-live');
+  stopTick();
+  stopRoundMusic();   // la música se corta AQUÍ, al acabar la ronda (momento común)
+
+  const reveal = $('reveal');
+
+  // EMPATE: ronda desierta
+  if (result.tie) {
+    reveal.classList.remove('gold');
+    reveal.classList.add('visible', 'tie');
+    $('reveal-ronda-label').innerHTML = T.revealRound(`<span id="reveal-round">${result.round}</span>`);
+    $('reveal-winner').textContent = T.tieTitle;
+    $('reveal-cost').textContent = '';
+    reveal.style.setProperty('--winner-color', '#9a8f78');
+    setTimeout(() => playGavel(), 300);
+    setTimeout(() => speak(T.speakTie), 700);
+    $('game-last').innerHTML = `<b>${T.tieShort}</b>`;
+    setTimeout(() => {
+      reveal.classList.remove('visible', 'tie');
+      if (amHost) hostStartNextRound();
+    }, REVEAL_MS);
+    return;
+  }
+
+  const winner = roomData.players[result.winnerId];
+  if (!winner) return;
+  const winnerColor = COLORS[winner.colorIdx % COLORS.length];
+
+  reveal.classList.remove('tie');
+  $('reveal-ronda-label').innerHTML = T.revealRound(`<span id="reveal-round">${result.round}</span>`);
+  $('reveal-winner').textContent = winner.name;
+  $('reveal-cost').textContent = formatBudget(result.costMs);
+  reveal.style.setProperty('--winner-color', winnerColor);
+  reveal.classList.toggle('gold', !!result.gold);
+  reveal.classList.add('visible');
+
+  // Martillo: el golpe visual impacta a ~0.5s, sincronizo el sonido ahí
+  setTimeout(() => playGavel(), 480);
+  setTimeout(() => playChime(), 650);
+  setTimeout(() => {
+    const phrase = result.gold
+      ? T.speakWonGold(winner.name, timeToWords(result.costMs))
+      : T.speakWon(winner.name, timeToWords(result.costMs));
+    speak(phrase);
+  }, 1200);
+
+  $('game-last').innerHTML = result.gold
+    ? `★ <b>${winner.name}</b> · ${formatBudget(result.costMs)}`
+    : `<b>${winner.name}</b> · ${formatBudget(result.costMs)}`;
+
+  const delay = result.gold ? REVEAL_MS + 1200 : REVEAL_MS;
+  setTimeout(() => {
+    reveal.classList.remove('visible');
+    // El host arranca la siguiente ronda
+    if (amHost) hostStartNextRound();
+  }, delay);
+}
+
+function onGameEnd() {
+  if ($('final').classList.contains('visible')) return;
+  document.body.classList.remove('in-game');
+  stopTick();
+  stopRoundMusic();
+  const players = Object.entries(roomData.players || {}).map(([id, p]) => ({ id, ...p }));
+  const ranked = players.sort((a, b) => b.wins - a.wins || b.budgetMs - a.budgetMs);
+  const winner = ranked[0];
+  const winnerColor = COLORS[winner.colorIdx % COLORS.length];
+
+  const finalEl = $('final');
+  finalEl.style.setProperty('--winner-color', winnerColor);
+  $('final-winner-name').textContent = winner.name;
+  $('final-winner-wins').innerHTML = T.finalWinsFmt(winner.wins);
+
+  const standings = $('standings'); standings.innerHTML = '';
+  ranked.slice(1).forEach((p, i) => {
+    const color = COLORS[p.colorIdx % COLORS.length];
+    const row = document.createElement('div');
+    row.className = 'row';
+    row.style.setProperty('--player-color', color);
+    row.innerHTML = `
+      <span class="pos">${(i+2).toString().padStart(2,'0')}</span>
+      <span class="nm">${escapeHtml(p.name)}</span>
+      <span class="wn">${p.wins}</span>
+      <span class="lbl">rondas</span>
+    `;
+    standings.appendChild(row);
+  });
+
+  // Revancha: host ve el botón, guests ven "esperando..."
+  $('btn-revancha').style.display = amHost ? 'block' : 'none';
+  $('revancha-waiting').style.display = amHost ? 'none' : 'block';
+
+  renderFinalStats(players);
+
+  finalEl.classList.add('visible');
+  setTimeout(() => playChime(), 400);
+  setTimeout(() => speak(T.speakFinal(winner.name, winner.wins)), 1400);
+}
+
+// Calcula y muestra estadísticas curiosas de la partida
+function renderFinalStats(players) {
+  const cont = $('final-stats');
+  cont.innerHTML = '';
+  const history = roomData.history || {};
+  const rounds = Object.values(history);
+  if (rounds.length === 0) return;
+
+  // Gasto total por jugador (suma de lo apostado en cada ronda)
+  const spent = {};
+  Object.keys(roomData.players).forEach(pid => { spent[pid] = 0; });
+  // El gasto lo reconstruimos del presupuesto inicial menos el actual
+  const initialBudget = roomData.mode?.timeMs || 180000;
+  Object.entries(roomData.players).forEach(([pid, p]) => {
+    spent[pid] = Math.max(0, initialBudget - (p.budgetMs || 0));
+  });
+
+  const nameOf = pid => roomData.players[pid]?.name || '—';
+
+  // El más agresivo (más tiempo gastado) y el más tacaño (menos)
+  const spentArr = Object.entries(spent).sort((a, b) => b[1] - a[1]);
+  const agresivo = spentArr[0];
+  const tacano = spentArr[spentArr.length - 1];
+
+  // Victoria más cara y más barata (de rondas con ganador, no desiertas)
+  const wins = rounds.filter(r => !r.tie && r.winnerId);
+  let masCara = null, masBarata = null;
+  wins.forEach(r => {
+    if (!masCara || r.costMs > masCara.costMs) masCara = r;
+    if (!masBarata || r.costMs < masBarata.costMs) masBarata = r;
+  });
+
+  const stats = [];
+  if (agresivo) stats.push({ label: T.statAgresivo, val: `<b>${escapeHtml(nameOf(agresivo[0]))}</b> · ${formatBudget(agresivo[1])}` });
+  if (tacano && tacano[0] !== agresivo[0]) stats.push({ label: T.statTacano, val: `<b>${escapeHtml(nameOf(tacano[0]))}</b> · ${formatBudget(tacano[1])}` });
+  if (masCara) stats.push({ label: T.statCara, val: `<b>${escapeHtml(nameOf(masCara.winnerId))}</b> · ${formatBudget(masCara.costMs)}` });
+  if (masBarata && masBarata !== masCara) stats.push({ label: T.statBarata, val: `<b>${escapeHtml(nameOf(masBarata.winnerId))}</b> · ${formatBudget(masBarata.costMs)}` });
+
+  stats.forEach(s => {
+    const row = document.createElement('div');
+    row.className = 'fstat';
+    row.innerHTML = `<span class="fstat-label">${s.label}</span><span class="fstat-val">${s.val}</span>`;
+    cont.appendChild(row);
+  });
+}
+
+// Host: reinicia la sala para revancha (mismos jugadores, mismo modo, todo a cero)
+async function hostRevancha() {
+  if (!amHost || !roomData) return;
+  $('btn-revancha').disabled = true;
+  $('btn-revancha').textContent = '...';
+
+  const budgetMs = roomData.mode?.timeMs || 180000;
+  const rounds = roomData.mode?.rounds || 10;
+  const gold = 2 + Math.floor(Math.random() * (rounds - 1));
+
+  // Resetear jugadores y estado de la sala de vuelta a lobby
+  const updates = {};
+  Object.keys(roomData.players || {}).forEach(pid => {
+    updates[`players/${pid}/wins`] = 0;
+    updates[`players/${pid}/budgetMs`] = budgetMs;
+  });
+  updates['state']        = 'lobby';
+  updates['currentRound'] = 0;
+  updates['goldRound']    = gold;
+  updates['roundStartAt'] = 0;
+  updates['lastResult']   = null;
+  updates['history']      = null;
+  updates['stops']        = null;
+
+  await update(roomRef, updates);
+}
+
+// Volver al lobby tras la revancha (sin reiniciar página ni reconectar)
+function showLobbyFromRevancha() {
+  $('final').classList.remove('visible');
+  // Resetear estado local del juego
+  revealShownForRound = -1;
+  lastRoundSeen = 0;
+  lastFinishedRound = 0;
+  myStopped = false;
+  roundActive = false;
+  document.body.classList.remove('in-game');
+  stopRoundMusic();
+  startMenuMusic();
+  // Recalcular rol y mostrar lobby
+  amHost = computeAmHost();
+  $('lobby-code').textContent = roomCode;
+  $('host-actions').style.display = amHost ? 'flex' : 'none';
+  $('guest-waiting').style.display = amHost ? 'none' : 'block';
+  // Desmarcar modo seleccionado y poner el primero por defecto
+  document.querySelectorAll('#host-actions .mode-card').forEach((c, i) => {
+    c.classList.toggle('selected', i === 0);
+  });
+  show('screen-lobby');
+  renderLobbyPlayers();
+}
+
+// =====================================================================
+// VISIBILITY: al volver del background, forzar procesamiento inmediato
+// =====================================================================
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden && roomData) {
+    // Si soy host y estamos jugando, comprobar si terminó la ronda mientras dormíamos
+    if (amHost && roomData.state === 'playing') {
+      hostAutoStopDisconnected();
+      hostMaybeFinishRound();
+    }
+    // Y forzar un repintado del estado actual
+    handleRoomUpdate();
+  }
+});
+
+// =====================================================================
+// LIMPIEZA DE SALAS ABANDONADAS
+// Borra en background las salas con más de ROOM_TTL_MS de antigüedad.
+// Es best-effort: si las reglas no lo permiten o falla, no pasa nada.
+// =====================================================================
+async function cleanupOldRooms() {
+  try {
+    const snap = await get(ref(db, 'rooms'));
+    if (!snap.exists()) return;
+    const rooms = snap.val();
+    const now = Date.now() + serverOffset;
+    const promises = [];
+    Object.entries(rooms).forEach(([code, data]) => {
+      const created = data && data.createdAt ? data.createdAt : 0;
+      if (created && now - created > ROOM_TTL_MS) {
+        promises.push(remove(ref(db, 'rooms/' + code)).catch(() => {}));
+      }
+    });
+    await Promise.all(promises);
+  } catch (e) {
+    // silencio: si no podemos por reglas o por red, no es crítico
+  }
+}
+
+// =====================================================================
+// RECONEXIÓN: si había una sala guardada, intentar volver a entrar
+// =====================================================================
+async function tryReconnect() {
+  const code = sessionStorage.getItem('subasta_room');
+  const name = sessionStorage.getItem('subasta_name');
+  if (!code || !name) return false;
+
+  try {
+    const r = ref(db, 'rooms/' + code);
+    const snap = await get(r);
+    if (!snap.exists()) { clearRoomState(); return false; }
+    const data = snap.val();
+    if (!data.players || !data.players[myId]) { clearRoomState(); return false; }
+    if (data.state === 'ended') { clearRoomState(); return false; }
+
+    myName = name;
+    roomCode = code;
+    roomRef = r;
+
+    // Marco conectado de nuevo + reconfigurar el onDisconnect
+    await update(ref(db, `rooms/${code}/players/${myId}`), { connected: true });
+    await onDisconnect(ref(db, `rooms/${code}/players/${myId}/connected`)).set(false);
+
+    enterLobby();
+    return true;
+  } catch (e) {
+    clearRoomState();
+    return false;
+  }
+}
+
+// Al cargar la página, ocultar el splash y, si procede, reconectar
+window.addEventListener('load', async () => {
+  applyI18n();
+
+  // Garantía: el splash siempre desaparece en ≤4s aunque algo cuelgue
+  let splashHidden = false;
+  function hideSplash() {
+    if (splashHidden) return; splashHidden = true;
+    $('app-splash').classList.add('hiding');
+    setTimeout(() => { $('app-splash').style.display = 'none'; }, 600);
+  }
+  const safetyTimeout = setTimeout(hideSplash, 4000);
+
+  const minSplash = new Promise(res => setTimeout(res, 1900));
+  let reconnected = false;
+  try {
+    cleanupOldRooms();
+    // tryReconnect con timeout de 3s: si Firebase tarda, no bloqueamos
+    reconnected = await Promise.race([
+      tryReconnect(),
+      new Promise(res => setTimeout(() => res(false), 3000))
+    ]);
+  } catch (e) {
+    console.warn('Carga inicial:', e);
+  }
+  await minSplash;
+  clearTimeout(safetyTimeout);
+  hideSplash();
+
+  // Intentar arrancar la música del menú en cuanto desaparece el logo.
+  // Si el navegador la bloquea (política de autoplay), se engancha al primer
+  // toque del usuario en cualquier parte de la pantalla.
+  ensureAudio();
+  startMenuMusic();
+  function kickMenuMusic() {
+    ensureAudio();
+    startMenuMusic();
+    if (menuMusicEl && !menuMusicEl.paused) {
+      document.removeEventListener('pointerdown', kickMenuMusic);
+      document.removeEventListener('touchstart', kickMenuMusic);
+      document.removeEventListener('click', kickMenuMusic);
+    }
+  }
+  document.addEventListener('pointerdown', kickMenuMusic);
+  document.addEventListener('touchstart', kickMenuMusic);
+  document.addEventListener('click', kickMenuMusic);
+
+  // ¿Vengo de un enlace compartido (?join=ABCD)?
+  if (!reconnected) {
+    try {
+      const params = new URLSearchParams(location.search);
+      const joinCode = (params.get('join') || '').toUpperCase();
+      if (joinCode.length === 4) {
+        $('join-code').value = joinCode;
+        show('screen-join');
+        // Limpiar el parámetro de la URL para que no moleste al recargar
+        history.replaceState(null, '', location.pathname);
+      }
+    } catch (e) {}
+  }
+});
+
+// =====================================================================
+// SERVICE WORKER (PWA installable)
+// =====================================================================
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js').catch(err => {
+      console.warn('SW registration failed:', err);
+    });
+  });
+}
+</script>
+</body>
+</html>
