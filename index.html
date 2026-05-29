@@ -478,14 +478,21 @@ html.pre-light #app-splash { background: #f4f0e6; }
 }
 .lobby-player {
   display: grid;
-  grid-template-columns: auto 1fr auto;
+  grid-template-columns: 8px auto 1fr auto;
   align-items: center;
-  gap: 0.8rem;
+  gap: 0.6rem;
   background: var(--panel);
   border-left: 3px solid var(--player-color);
   padding: 0.55rem 0.9rem;
   text-align: left;
 }
+.lobby-player .lp-dot {
+  width: 7px; height: 7px;
+  border-radius: 50%; flex-shrink: 0;
+  transition: background 0.5s;
+}
+.lobby-player .lp-dot.on  { background: #2ecc71; box-shadow: 0 0 5px rgba(46,204,113,0.7); }
+.lobby-player .lp-dot.off { background: var(--muted); }
 .lobby-player .lp-pos {
   font-family: 'IBM Plex Mono', monospace;
   font-size: 0.55rem; letter-spacing: 0.3em;
@@ -698,6 +705,20 @@ html.pre-light #app-splash { background: #f4f0e6; }
 .sb-pill.leader .sb-wins {
   color: var(--amber);
   text-shadow: 0 0 8px rgba(212,160,23,0.5);
+}
+/* Indicador de conexión */
+.sb-dot {
+  flex-shrink: 0;
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  transition: background 0.5s;
+}
+.sb-dot.on  { background: #2ecc71; box-shadow: 0 0 4px rgba(46,204,113,0.7); }
+.sb-dot.off { background: var(--muted); }
+/* Jugador desconectado: pill más apagado */
+.sb-pill.disconnected {
+  opacity: 0.45;
+  filter: grayscale(0.6);
 }
 
 .btn-zone {
@@ -2077,6 +2098,7 @@ function renderLobbyPlayers() {
     const color = COLORS[p.colorIdx % COLORS.length];
     el.style.setProperty('--player-color', color);
     el.innerHTML = `
+      <span class="lp-dot ${p.connected ? 'on' : 'off'}"></span>
       <span class="lp-pos">${(i+1).toString().padStart(2,'0')}</span>
       <span class="lp-name">${escapeHtml(p.name)}</span>
       <span class="lp-me">${p.id === myId ? T.roleYou : (p.id === hostId ? T.roleHost : '')}</span>
@@ -2720,7 +2742,6 @@ function renderScoreboard() {
     .map(([id, p]) => ({ id, ...p }))
     .sort((a, b) => (a.joinedAt || 0) - (b.joinedAt || 0));
 
-  // Máximo de wins (para marcar al líder, solo si hay al menos uno con >0)
   const maxWins = Math.max(0, ...players.map(p => p.wins || 0));
 
   wrap.innerHTML = '';
@@ -2730,8 +2751,10 @@ function renderScoreboard() {
     pill.className = 'sb-pill';
     if (p.id === myId) pill.classList.add('me');
     if (maxWins > 0 && (p.wins || 0) === maxWins) pill.classList.add('leader');
+    if (!p.connected) pill.classList.add('disconnected');
     pill.style.setProperty('--sb-color', color);
     pill.innerHTML = `
+      <span class="sb-dot ${p.connected ? 'on' : 'off'}"></span>
       <span class="sb-name">${escapeHtml(p.name)}</span>
       <span class="sb-wins">${p.wins || 0}</span>
     `;

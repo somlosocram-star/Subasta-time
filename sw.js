@@ -2,7 +2,7 @@
 // Estrategia: cache-first para los recursos estáticos del juego,
 // network-only para todo lo de Firebase y CDN externos.
 
-const CACHE_NAME = 'subasta-v24';
+const CACHE_NAME = 'subasta-v25';
 const STATIC_ASSETS = [
   './',
   './index.html',
