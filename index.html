@@ -269,36 +269,43 @@ html.pre-light #app-splash { background: #f4f0e6; }
 .splash-seal {
   width: 140px; height: 140px;
   border-radius: 50%;
-  border: 1px solid var(--amber);
+  border: 1px solid rgba(255,255,255,0.7);
   display: flex; align-items: center; justify-content: center;
   position: relative;
   box-shadow:
-    inset 0 0 40px rgba(212,160,23,0.18),
-    0 0 80px rgba(212,160,23,0.18);
+    inset 0 0 40px rgba(255,255,255,0.08),
+    0 0 80px rgba(255,255,255,0.08);
   animation: sealMint 1.1s cubic-bezier(0.2, 0.9, 0.3, 1) both;
   overflow: hidden;
 }
 .splash-seal::before {
   content: ''; position: absolute; border-radius: 50%;
-  border: 1px solid rgba(212,160,23,0.25);
+  border: 1px solid rgba(255,255,255,0.18);
   inset: 8px;
 }
 .splash-seal::after {
   /* anillo punteado exterior que gira */
   content: ''; position: absolute; border-radius: 50%;
-  border: 1px dotted rgba(212,160,23,0.5);
+  border: 1px dotted rgba(255,255,255,0.4);
   inset: -14px;
   animation: ringSpin 8s linear infinite;
 }
 .splash-seal .glyph {
   font-family: 'Cormorant Garamond', serif;
   font-style: italic; font-weight: 700;
-  font-size: 4rem; color: var(--amber); line-height: 1;
-  text-shadow: 0 0 24px rgba(212,160,23,0.4);
+  font-size: 4rem; color: #ffffff; line-height: 1;
+  text-shadow: 0 0 24px rgba(255,255,255,0.3);
   animation: glyphDrop 0.7s cubic-bezier(0.3, 1.4, 0.5, 1) both;
   animation-delay: 0.55s;
   position: relative; z-index: 2;
 }
+body.light .splash-seal {
+  border-color: rgba(0,0,0,0.7);
+  box-shadow: inset 0 0 40px rgba(0,0,0,0.06), 0 0 80px rgba(0,0,0,0.06);
+}
+body.light .splash-seal::before { border-color: rgba(0,0,0,0.18); }
+body.light .splash-seal::after  { border-color: rgba(0,0,0,0.3); }
+body.light .splash-seal .glyph  { color: #0c0a08; text-shadow: none; }
 /* destello que barre la moneda */
 .splash-seal .shine {
   position: absolute; inset: 0;
@@ -351,24 +358,31 @@ html.pre-light #app-splash { background: #f4f0e6; }
 .seal {
   width: 56px; height: 56px;
   border-radius: 50%;
-  border: 1px solid var(--amber);
+  border: 1px solid rgba(255,255,255,0.65);
   display: flex; align-items: center; justify-content: center;
   margin-bottom: 1.5rem;
   position: relative;
-  box-shadow: inset 0 0 20px rgba(212,160,23,0.15), 0 0 30px rgba(212,160,23,0.08);
+  box-shadow: inset 0 0 20px rgba(255,255,255,0.06), 0 0 30px rgba(255,255,255,0.04);
   flex-shrink: 0;
 }
 .seal::before, .seal::after {
   content: ''; position: absolute; border-radius: 50%;
-  border: 1px solid rgba(212,160,23,0.25);
+  border: 1px solid rgba(255,255,255,0.2);
 }
 .seal::before { inset: 4px; }
 .seal::after { inset: -8px; border-style: dotted; opacity: 0.4; }
 .seal .glyph {
   font-family: 'Cormorant Garamond', serif;
   font-style: italic; font-weight: 700;
-  font-size: 1.4rem; color: var(--amber); line-height: 1;
+  font-size: 1.4rem; color: #ffffff; line-height: 1;
 }
+body.light .seal {
+  border-color: rgba(0,0,0,0.65);
+  box-shadow: inset 0 0 20px rgba(0,0,0,0.05), 0 0 30px rgba(0,0,0,0.03);
+}
+body.light .seal::before,
+body.light .seal::after { border-color: rgba(0,0,0,0.2); }
+body.light .seal .glyph { color: #0c0a08; }
 .title {
   font-size: clamp(2.2rem, 8vw, 4rem);
   font-weight: 500; font-style: italic;
@@ -1592,6 +1606,38 @@ let roomData = null;       // último snapshot completo de la sala
 let serverOffset = 0;
 let unsubs = [];            // funciones para desuscribirse
 
+// HEARTBEAT (latido de conexión)
+// Cada jugador escribe su "lastSeen" periódicamente. Se considera conectado
+// a quien ha latido hace menos de HEARTBEAT_TIMEOUT ms. Esto sustituye al
+// onDisconnect del SDK (que no es fiable con la API REST).
+const HEARTBEAT_INTERVAL = 2000;   // escribo mi latido cada 2s
+const HEARTBEAT_TIMEOUT  = 6000;   // sin latido en 6s = desconectado
+let heartbeatTimer = null;
+
+function startHeartbeat() {
+  stopHeartbeat();
+  const beat = () => {
+    if (roomCode && myId) {
+      set(ref(db, `rooms/${roomCode}/players/${myId}/lastSeen`), Date.now()).catch(() => {});
+    }
+  };
+  beat();
+  heartbeatTimer = setInterval(beat, HEARTBEAT_INTERVAL);
+}
+function stopHeartbeat() {
+  if (heartbeatTimer) { clearInterval(heartbeatTimer); heartbeatTimer = null; }
+}
+// ¿Está conectado este jugador? (según su último latido)
+function isConnected(p) {
+  if (!p) return false;
+  if (p.lastSeen === undefined || p.lastSeen === null) {
+    // Compatibilidad: si aún no ha latido pero tiene connected=true, lo damos por bueno un momento
+    return p.connected === true;
+  }
+  return (Date.now() - p.lastSeen) < HEARTBEAT_TIMEOUT;
+}
+
+
 // Timing local de ronda
 let roundStartServerMs = 0;
 let roundActive = false;
@@ -1965,12 +2011,12 @@ $('btn-host-continue').addEventListener('click', async () => {
       [myId]: {
         name: myName, colorIdx: 0,
         wins: 0, budgetMs: 180000, joinedAt: serverTimestamp(),
-        connected: true
+        connected: true, lastSeen: Date.now()
       }
     }
   });
 
-  await onDisconnect(ref(db, `rooms/${code}/players/${myId}/connected`)).set(false);
+  startHeartbeat();
   saveRoomState();
   enterLobby();
 });
@@ -1999,9 +2045,9 @@ $('btn-join-continue').addEventListener('click', async () => {
   await update(ref(db, `rooms/${code}/players/${myId}`), {
     name: myName, colorIdx,
     wins: 0, budgetMs: 180000, joinedAt: serverTimestamp(),
-    connected: true
+    connected: true, lastSeen: Date.now()
   });
-  await onDisconnect(ref(db, `rooms/${code}/players/${myId}/connected`)).set(false);
+  startHeartbeat();
   saveRoomState();
   enterLobby();
 });
@@ -2094,11 +2140,11 @@ function renderLobbyPlayers() {
   arr.forEach((p, i) => {
     const el = document.createElement('div');
     el.className = 'lobby-player';
-    if (!p.connected) el.classList.add('disconnected');
+    if (!isConnected(p)) el.classList.add('disconnected');
     const color = COLORS[p.colorIdx % COLORS.length];
     el.style.setProperty('--player-color', color);
     el.innerHTML = `
-      <span class="lp-dot ${p.connected ? 'on' : 'off'}"></span>
+      <span class="lp-dot ${isConnected(p) ? 'on' : 'off'}"></span>
       <span class="lp-pos">${(i+1).toString().padStart(2,'0')}</span>
       <span class="lp-name">${escapeHtml(p.name)}</span>
       <span class="lp-me">${p.id === myId ? T.roleYou : (p.id === hostId ? T.roleHost : '')}</span>
@@ -2325,7 +2371,7 @@ document.getElementById('tut-close').addEventListener('click', () => {
 function computeAmHost() {
   if (!roomData || !roomData.players) return false;
   const connected = Object.entries(roomData.players)
-    .filter(([, p]) => p.connected)
+    .filter(([, p]) => isConnected(p))
     .sort((a, b) => (a[1].joinedAt || 0) - (b[1].joinedAt || 0));
   if (connected.length === 0) return false;
   return connected[0][0] === myId;
@@ -2334,7 +2380,7 @@ function computeAmHost() {
 function currentHostId() {
   if (!roomData || !roomData.players) return null;
   const connected = Object.entries(roomData.players)
-    .filter(([, p]) => p.connected)
+    .filter(([, p]) => isConnected(p))
     .sort((a, b) => (a[1].joinedAt || 0) - (b[1].joinedAt || 0));
   return connected.length > 0 ? connected[0][0] : null;
 }
@@ -2387,6 +2433,7 @@ $('btn-share').addEventListener('click', () => {
 async function leaveRoom() {
   stopTick();
   stopRoundMusic();
+  stopHeartbeat();
   document.body.classList.remove('in-game');
   if (roomRef) {
     // Solo me quito a mí mismo. Si quedo solo y la sala estaba en lobby, la borro.
@@ -2408,6 +2455,7 @@ async function leaveRoom() {
   unsubs = [];
   roomRef = null; roomCode = null; roomData = null;
   amHost = false;
+  startMenuMusic();
   show('screen-home');
 }
 
@@ -2439,7 +2487,7 @@ function hostAutoStopDisconnected() {
   const stops = (roomData.stops && roomData.stops['r' + cur]) || {};
   const players = roomData.players || {};
   Object.entries(players).forEach(([pid, p]) => {
-    if (!p.connected && stops[pid] === undefined) {
+    if (!isConnected(p) && stops[pid] === undefined) {
       set(ref(db, `rooms/${roomCode}/stops/r${cur}/${pid}`), {
         elapsed: 0,
         ts: serverTimestamp(),
@@ -2751,10 +2799,10 @@ function renderScoreboard() {
     pill.className = 'sb-pill';
     if (p.id === myId) pill.classList.add('me');
     if (maxWins > 0 && (p.wins || 0) === maxWins) pill.classList.add('leader');
-    if (!p.connected) pill.classList.add('disconnected');
+    if (!isConnected(p)) pill.classList.add('disconnected');
     pill.style.setProperty('--sb-color', color);
     pill.innerHTML = `
-      <span class="sb-dot ${p.connected ? 'on' : 'off'}"></span>
+      <span class="sb-dot ${isConnected(p) ? 'on' : 'off'}"></span>
       <span class="sb-name">${escapeHtml(p.name)}</span>
       <span class="sb-wins">${p.wins || 0}</span>
     `;
@@ -3021,9 +3069,9 @@ async function tryReconnect() {
     roomCode = code;
     roomRef = r;
 
-    // Marco conectado de nuevo + reconfigurar el onDisconnect
-    await update(ref(db, `rooms/${code}/players/${myId}`), { connected: true });
-    await onDisconnect(ref(db, `rooms/${code}/players/${myId}/connected`)).set(false);
+    // Marco conectado de nuevo y arranco el latido
+    await update(ref(db, `rooms/${code}/players/${myId}`), { connected: true, lastSeen: Date.now() });
+    startHeartbeat();
 
     enterLobby();
     return true;
